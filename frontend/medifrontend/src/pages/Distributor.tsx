@@ -7,7 +7,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import BlockchainStatus from "@/components/BlockchainStatus";
 
 const Distributor = () => {
-  const [form, setForm] = useState({ batchId: "", distributor: "", location: "", shipmentStatus: "in-transit" });
+  const [form, setForm] = useState({
+    batchId: "",
+    distributor: "",
+    location: "",
+    shipmentStatus: "in-transit",
+    forwardTo: "",
+  });
   const [status, setStatus] = useState<"idle" | "pending" | "confirmed">("idle");
   const [txHash, setTxHash] = useState("");
 
@@ -29,9 +35,18 @@ const Distributor = () => {
         <CardHeader><CardTitle>Shipment Details</CardTitle></CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2"><Label>Batch ID</Label><Input value={form.batchId} onChange={e => update("batchId", e.target.value)} required /></div>
-            <div className="space-y-2"><Label>Distributor Name</Label><Input value={form.distributor} onChange={e => update("distributor", e.target.value)} required /></div>
-            <div className="space-y-2"><Label>Location</Label><Input value={form.location} onChange={e => update("location", e.target.value)} required /></div>
+            <div className="space-y-2">
+              <Label>Batch ID</Label>
+              <Input value={form.batchId} onChange={e => update("batchId", e.target.value)} required />
+            </div>
+            <div className="space-y-2">
+              <Label>Distributor Name</Label>
+              <Input value={form.distributor} onChange={e => update("distributor", e.target.value)} required />
+            </div>
+            <div className="space-y-2">
+              <Label>Location</Label>
+              <Input value={form.location} onChange={e => update("location", e.target.value)} placeholder="City, Country" required />
+            </div>
             <div className="space-y-2">
               <Label>Shipment Status</Label>
               <Select value={form.shipmentStatus} onValueChange={v => update("shipmentStatus", v)}>
@@ -43,7 +58,28 @@ const Distributor = () => {
                 </SelectContent>
               </Select>
             </div>
-            <Button type="submit" disabled={status === "pending"} className="w-full">Update Blockchain Record</Button>
+            <div className="space-y-2">
+              <Label>Forward To</Label>
+              <Select value={form.forwardTo} onValueChange={v => update("forwardTo", v)} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select next recipient…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="distributor">Another Distributor</SelectItem>
+                  <SelectItem value="pharmacy">Pharmacy</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Select where this shipment is being forwarded next in the supply chain.
+              </p>
+            </div>
+            <Button
+              type="submit"
+              disabled={status === "pending" || !form.forwardTo}
+              className="w-full"
+            >
+              Update Blockchain Record
+            </Button>
           </form>
         </CardContent>
       </Card>

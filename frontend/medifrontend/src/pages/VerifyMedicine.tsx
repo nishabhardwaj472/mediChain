@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -10,8 +10,16 @@ import { QrCode, Search, CheckCircle2, AlertTriangle, ArrowLeft } from "lucide-r
 
 const VerifyMedicine = () => {
   const navigate = useNavigate();
-  const [batchId, setBatchId] = useState("");
+  const { batchId: urlBatchId } = useParams();
+  const [batchId, setBatchId] = useState(urlBatchId || "");
   const [result, setResult] = useState<"valid" | "counterfeit" | null>(null);
+
+  // Auto-verify if batchId is in URL
+  React.useEffect(() => {
+    if (urlBatchId) {
+      setResult(urlBatchId.startsWith("BATCH") ? "valid" : "counterfeit");
+    }
+  }, [urlBatchId]);
 
   const handleVerify = (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,8 +74,9 @@ const VerifyMedicine = () => {
           <CardContent className="space-y-4">
             <div className="grid sm:grid-cols-2 gap-3 text-sm">
               <div><span className="text-muted-foreground">Name:</span> Amoxicillin 500mg</div>
-              <div><span className="text-muted-foreground">Batch:</span> {batchId}</div>
+              <div><span className="text-muted-foreground">Batch ID:</span> {batchId}</div>
               <div><span className="text-muted-foreground">Manufacturer:</span> PharmaCorp</div>
+              <div><span className="text-muted-foreground">License Number:</span> LIC-2025-8842</div>
               <div><span className="text-muted-foreground">Production:</span> 2025-01-10</div>
               <div><span className="text-muted-foreground">Expiry:</span> 2027-01-10</div>
             </div>

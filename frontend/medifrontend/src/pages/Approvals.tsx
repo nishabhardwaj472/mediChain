@@ -3,7 +3,7 @@ import { useAuth, APPROVER_FOR, UserRole } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Clock, Users, ShieldCheck, Truck, Store, Factory } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, Users, ShieldCheck, Truck, Store, Factory } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const roleIconMap: Record<string, React.ElementType> = {
@@ -19,9 +19,10 @@ const roleBadgeVariant: Record<string, "default" | "secondary" | "destructive" |
 };
 
 const Approvals = () => {
-  const { user, pendingUsers, approveUser } = useAuth();
+  const { user, pendingUsers, approveUser, rejectUser } = useAuth();
   const { toast } = useToast();
   const [approving, setApproving] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState<string | null>(null);
 
   if (!user) return null;
 
@@ -51,6 +52,19 @@ const Approvals = () => {
     }, 800);
   };
 
+  const handleReject = (email: string, name: string) => {
+    setRejecting(email);
+    setTimeout(() => {
+      rejectUser(email);
+      setRejecting(null);
+      toast({
+        title: "User Rejected",
+        description: `${name}'s registration has been rejected.`,
+        variant: "destructive",
+      });
+    }, 800);
+  };
+
   const approverLabel: Record<string, string> = {
     admin: "Manufacturers",
     manufacturer: "Distributors",
@@ -65,7 +79,7 @@ const Approvals = () => {
           <h1 className="text-2xl font-bold">Manage Approvals</h1>
           <p className="text-sm text-muted-foreground">
             {canApproveRole
-              ? `Approve pending ${approverLabel[user.role]} to grant them dashboard access`
+              ? `Approve or reject pending ${approverLabel[user.role]} to manage their dashboard access`
               : "You do not have approval permissions for any role"}
           </p>
         </div>
@@ -100,7 +114,7 @@ const Approvals = () => {
                   <CardDescription>
                     {myPending.length === 0
                       ? "No pending approvals"
-                      : `${myPending.length} user${myPending.length > 1 ? "s" : ""} awaiting your approval`}
+                      : `${myPending.length} user${myPending.length > 1 ? "s" : ""} awaiting your decision`}
                   </CardDescription>
                 </div>
               </div>
@@ -115,7 +129,7 @@ const Approvals = () => {
               <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground gap-3">
                 <CheckCircle2 className="h-12 w-12 text-green-500/70" />
                 <p className="font-medium">All caught up!</p>
-                <p className="text-sm">No pending {approverLabel[user.role].toLowerCase()} to approve.</p>
+                <p className="text-sm">No pending {approverLabel[user.role].toLowerCase()} to review.</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -136,15 +150,16 @@ const Approvals = () => {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       <Badge variant={roleBadgeVariant[pending.role]} className="capitalize hidden sm:flex">
                         {pending.role}
                       </Badge>
+                      {/* Approve Button */}
                       <Button
                         size="sm"
                         onClick={() => handleApprove(pending.email, pending.name)}
-                        disabled={approving === pending.email}
-                        className="gap-2"
+                        disabled={approving === pending.email || rejecting === pending.email}
+                        className="gap-1.5 bg-green-600 hover:bg-green-700 text-white"
                       >
                         {approving === pending.email ? (
                           <>
@@ -155,6 +170,26 @@ const Approvals = () => {
                           <>
                             <CheckCircle2 className="h-3.5 w-3.5" />
                             Approve
+                          </>
+                        )}
+                      </Button>
+                      {/* Reject Button */}
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleReject(pending.email, pending.name)}
+                        disabled={approving === pending.email || rejecting === pending.email}
+                        className="gap-1.5"
+                      >
+                        {rejecting === pending.email ? (
+                          <>
+                            <span className="animate-spin h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full" />
+                            Rejecting...
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="h-3.5 w-3.5" />
+                            Reject
                           </>
                         )}
                       </Button>
@@ -185,7 +220,7 @@ const Approvals = () => {
               <div key={row.approver} className="flex items-center gap-2 text-muted-foreground">
                 <ShieldCheck className="h-3.5 w-3.5 text-primary flex-shrink-0" />
                 <span>
-                  <strong className="text-foreground">{row.approver}</strong> approves{" "}
+                  <strong className="text-foreground">{row.approver}</strong> approves &amp; rejects{" "}
                   <strong className="text-foreground">{row.target}</strong>
                 </span>
               </div>

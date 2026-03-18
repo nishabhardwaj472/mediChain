@@ -14,12 +14,12 @@ import {
 
 const menuItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, roles: ["admin", "manufacturer", "distributor", "pharmacy", "consumer"] },
-  { title: "Add Medicine Batch", url: "/dashboard/add-batch", icon: PlusCircle, roles: ["admin", "manufacturer"] },
-  { title: "Supply Chain Tracking", url: "/dashboard/track", icon: Route, roles: ["admin", "manufacturer", "distributor", "pharmacy"] },
+  { title: "Supply Chain Tracking", url: "/dashboard/track", icon: Route, roles: ["admin", "manufacturer", "distributor", "pharmacy", "consumer"] },
+  { title: "Add Medicine Batch", url: "/dashboard/add-batch", icon: PlusCircle, roles: ["manufacturer"] },
+  { title: "Update Shipment", url: "/dashboard/distributor", icon: Truck, roles: ["manufacturer", "distributor"] },
+  { title: "Receive Medicine", url: "/dashboard/pharmacy", icon: Store, roles: ["pharmacy"] },
   { title: "QR Verification", url: "/dashboard/verify", icon: QrCode, roles: ["admin", "manufacturer", "distributor", "pharmacy", "consumer"] },
-  { title: "Update Shipment", url: "/dashboard/distributor", icon: Truck, roles: ["admin", "distributor"] },
-  { title: "Receive Medicine", url: "/dashboard/pharmacy", icon: Store, roles: ["admin", "pharmacy"] },
-  { title: "Transactions", url: "/dashboard/transactions", icon: ArrowLeftRight, roles: ["admin", "manufacturer", "distributor", "pharmacy"] },
+  { title: "Transactions", url: "/dashboard/transactions", icon: ArrowLeftRight, roles: ["admin", "manufacturer", "distributor", "pharmacy", "consumer"] },
   { title: "Reports", url: "/dashboard/reports", icon: FileBarChart, roles: ["admin"] },
 ];
 

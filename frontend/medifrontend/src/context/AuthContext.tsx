@@ -36,6 +36,7 @@ interface AuthContextType {
   register: (email: string, role: UserRole, name: string, organization?: string, walletAddress?: string) => void;
   logout: () => void;
   approveUser: (email: string) => void;
+  rejectUser: (email: string) => void;
   isAuthenticated: boolean;
 }
 
@@ -114,10 +115,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     refreshPending();
   };
 
+  const rejectUser = (email: string) => {
+    userStore = userStore.filter(u => u.email !== email);
+    refreshPending();
+  };
+
   const logout = () => setUser(null);
 
   return (
-    <AuthContext.Provider value={{ user, pendingUsers, login, register, logout, approveUser, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, pendingUsers, login, register, logout, approveUser, rejectUser, isAuthenticated: !!user }}>
       {children}
     </AuthContext.Provider>
   );
