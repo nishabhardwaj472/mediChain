@@ -1,0 +1,83 @@
+# ------------------------
+# Node modules
+# ------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ------------------------
+# Environment variables
+# ------------------------
+.env
+.env.*
+!.env.example
+
+# ------------------------
+# Logs
+# ------------------------
+logs/
+*.log
+
+# ------------------------
+# Build / dist
+# ------------------------
+dist/
+build/
+out/
+.next/
+.cache/
+coverage/
+
+# ------------------------
+# OS files
+# ------------------------
+.DS_Store
+Thumbs.db
+
+# ------------------------
+# IDE / Editor
+# ------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ------------------------
+# TypeScript
+# ------------------------
+*.tsbuildinfo
+
+# ------------------------
+# Package lock files (optional)
+# ------------------------
+# Uncomment if you don't want to track lock files
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# ------------------------
+# Misc
+# ------------------------
+*.tgz
+*.bak
+*.tmp
+
+# ------------------------
+# Firebase / Vercel / Netlify (if used)
+# ------------------------
+.firebase/
+.vercel/
+.netlify/
+
+# ------------------------
+# Database files
+# ------------------------
+*.sqlite
+*.db
+
+# ------------------------
+# Uploads (if any)
+# ------------------------
+uploads/
