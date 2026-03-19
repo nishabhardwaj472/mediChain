@@ -20,11 +20,9 @@ const userSchema = new Schema(
       trim: true,
     },
 
-  
-
     role: {
       type: String,
-      enum: ["admin", "subadmin", "voter"],
+      enum: ["admin", "manufacturer", "distributor", "pharmacy"],
       required: true,
     },
 
@@ -32,24 +30,26 @@ const userSchema = new Schema(
       type: String,
       required: true,
       unique: true,
-      lowercase: true, // 🔥 normalize
+      lowercase: true,
       trim: true,
+      match: /^0x[a-fA-F0-9]{40}$/,
     },
 
     isApproved: {
       type: Boolean,
-      default: null,
+      default: false,
     },
-
-   
 
     password: {
       type: String,
       required: true,
     },
 
-    refreshToken: {
-      type: String,
+    refreshToken: String,
+
+    isActive: {
+      type: Boolean,
+      default: true,
     },
   },
   {
@@ -57,32 +57,25 @@ const userSchema = new Schema(
   }
 );
 
-//
-// ✅ FIXED PRE-SAVE HOOK (NO next)
-//
+// 🔐 HASH PASSWORD
 userSchema.pre("save", async function () {
   if (!this.isModified("password")) return;
-
   this.password = await bcrypt.hash(this.password, 10);
 });
 
-//
-// ✅ PASSWORD CHECK
-//
+// 🔑 CHECK PASSWORD
 userSchema.methods.isPasswordCorrect = async function (password) {
   return bcrypt.compare(password, this.password);
 };
 
-//
-// ✅ ACCESS TOKEN
-//
+// 🎟 ACCESS TOKEN
 userSchema.methods.generateAccessToken = function () {
   return jwt.sign(
     {
       _id: this._id,
       email: this.email,
-      fullName: this.fullName,
       role: this.role,
+      walletAddress: this.walletAddress,
     },
     process.env.ACCESS_TOKEN_SECRET,
     {
@@ -91,9 +84,7 @@ userSchema.methods.generateAccessToken = function () {
   );
 };
 
-//
-// ✅ REFRESH TOKEN
-//
+// 🔄 REFRESH TOKEN
 userSchema.methods.generateRefreshToken = function () {
   return jwt.sign(
     {

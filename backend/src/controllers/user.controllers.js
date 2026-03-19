@@ -1,4 +1,4 @@
-import { User } from "../models/user.model.js";
+import { User } from "../models/User.model.js";
 import { contract } from "../utils/blockchain.js";
 import { ethers } from "ethers";
 

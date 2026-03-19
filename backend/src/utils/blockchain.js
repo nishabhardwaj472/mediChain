@@ -4,20 +4,16 @@ import fs from "fs";
 
 dotenv.config();
 
-/* Validate environment variables */
-if (!process.env.SEPOLIA_RPC_URL) {
-  throw new Error("Missing SEPOLIA_RPC_URL in environment variables");
-}
+/* 🔐 ENV VALIDATION */
+const requiredEnv = ["SEPOLIA_RPC_URL", "PRIVATE_KEY", "CONTRACT_ADDRESS"];
 
-if (!process.env.PRIVATE_KEY) {
-  throw new Error("Missing PRIVATE_KEY in environment variables");
-}
+requiredEnv.forEach((key) => {
+  if (!process.env[key]) {
+    throw new Error(`Missing ${key} in environment variables`);
+  }
+});
 
-if (!process.env.CONTRACT_ADDRESS) {
-  throw new Error("Missing CONTRACT_ADDRESS in environment variables");
-}
-
-/* Load ABI */
+/* 📦 LOAD ABI */
 const abi = JSON.parse(
   fs.readFileSync(
     new URL("../abi/medichain.json", import.meta.url),
@@ -25,20 +21,20 @@ const abi = JSON.parse(
   )
 );
 
-/* Provider */
-const provider = new ethers.JsonRpcProvider(
+/* 🌐 PROVIDER */
+export const provider = new ethers.JsonRpcProvider(
   process.env.SEPOLIA_RPC_URL
 );
 
-/* Admin wallet */
-const wallet = new ethers.Wallet(
+/* 🔑 SIGNER (ADMIN WALLET) */
+export const signer = new ethers.Wallet(
   process.env.PRIVATE_KEY,
   provider
 );
 
-/* Contract instance */
+/* 📜 CONTRACT INSTANCE */
 export const contract = new ethers.Contract(
   process.env.CONTRACT_ADDRESS,
   abi.abi,
-  wallet
+  signer
 );
