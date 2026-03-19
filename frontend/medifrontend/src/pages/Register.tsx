@@ -1,13 +1,55 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useAuth, UserRole } from "@/context/AuthContext";
+import { useWallet } from "@/hooks/useWallet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Shield, Wallet, UserPlus, Clock } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardFooter,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Shield, Wallet, UserPlus, Clock, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+//
+// ✅ SCHEMA
+//
+const registerSchema = z
+  .object({
+    fullName: z.string().min(2, "Name required"),
+    email: z.string().email("Invalid email"),
+    password: z.string().min(6, "Minimum 6 characters"),
+    confirmPassword: z.string(),
+    role: z.enum(["manufacturer", "distributor", "pharmacy", "consumer"]),
+    organization: z.string().optional(),
+  })
+  .refine((d) => d.password === d.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
+
+type FormData = z.infer<typeof registerSchema>;
+
+const ROLES_PENDING_APPROVAL: UserRole[] = [
+  "manufacturer",
+  "distributor",
+  "pharmacy",
+];
 
 const roles: { value: UserRole; label: string; description: string }[] = [
   { value: "manufacturer", label: "Manufacturer", description: "Register & track medicine batches" },
@@ -16,89 +58,98 @@ const roles: { value: UserRole; label: string; description: string }[] = [
   { value: "consumer", label: "Consumer", description: "Verify medicine authenticity" },
 ];
 
-const ROLES_PENDING_APPROVAL: UserRole[] = ["manufacturer", "distributor", "pharmacy"];
-
-const Register = () => {
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [role, setRole] = useState<UserRole>("consumer");
-  const [organization, setOrganization] = useState("");
-  const [walletConnected, setWalletConnected] = useState(false);
-  const [registered, setRegistered] = useState(false);
-
-  const { register } = useAuth();
+export default function Register() {
+  const { register: registerUser } = useAuth();
+  const wallet = useWallet();
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const [showPw, setShowPw] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [registered, setRegistered] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<FormData>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: { role: "consumer" },
+  });
+
+  const role = watch("role");
   const needsApproval = ROLES_PENDING_APPROVAL.includes(role);
 
-  const handleRegister = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password !== confirmPassword) {
-      toast({ title: "Passwords do not match", description: "Please make sure both passwords are the same.", variant: "destructive" });
-      return;
-    }
-    if (password.length < 6) {
-      toast({ title: "Password too short", description: "Password must be at least 6 characters.", variant: "destructive" });
+  //
+  // 🚀 SUBMIT
+  //
+  const onSubmit = async (data: FormData) => {
+    if (!wallet.address) {
+      toast({
+        title: "Connect wallet first",
+        variant: "destructive",
+      });
       return;
     }
 
-    register(email, role, fullName, organization || undefined, walletConnected ? "0x7a3B...9f2E" : undefined);
+    setIsSubmitting(true);
 
-    if (needsApproval) {
-      // Stay on page — show pending message
-      setRegistered(true);
-    } else {
-      // Consumer / admin go straight to dashboard
-      toast({ title: "Registration successful!", description: "Welcome to MediChain." });
-      navigate("/dashboard");
+    try {
+      await registerUser({
+        fullName: data.fullName,
+        email: data.email,
+        password: data.password,
+        role: data.role,
+        walletAddress: wallet.address,
+      });
+
+      if (needsApproval) {
+        setRegistered(true);
+      } else {
+        toast({
+          title: "Registration successful",
+        });
+        navigate("/dashboard");
+      }
+    } catch (err: any) {
+      toast({
+        title: err.message || "Registration failed",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const connectWallet = () => {
-    setWalletConnected(true);
-    toast({ title: "Wallet Connected", description: "MetaMask wallet linked successfully." });
-  };
+  const showOrgField =
+    role === "manufacturer" ||
+    role === "distributor" ||
+    role === "pharmacy";
 
-  const showOrgField = role === "manufacturer" || role === "distributor" || role === "pharmacy";
-
-  // Post-registration pending screen for roles that need approval
+  //
+  // ⏳ PENDING SCREEN
+  //
   if (registered && needsApproval) {
-    const approverLabel: Record<string, string> = {
-      manufacturer: "an Admin",
-      distributor: "an approved Manufacturer",
-      pharmacy: "an approved Distributor",
-    };
     return (
       <div className="min-h-screen flex items-center justify-center px-4 py-8 bg-muted/30">
         <Card className="w-full max-w-md text-center">
           <CardHeader>
             <div className="flex justify-center mb-4">
-              <div className="h-16 w-16 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+              <div className="h-16 w-16 rounded-full bg-amber-100 flex items-center justify-center">
                 <Clock className="h-8 w-8 text-amber-500 animate-pulse" />
               </div>
             </div>
             <CardTitle className="text-2xl">Account Created!</CardTitle>
             <CardDescription>
-              Your <strong className="capitalize text-foreground">{role}</strong> account is pending approval.
+              Your <strong>{role}</strong> account is pending approval.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground text-left">
-              <p>
-                Your account needs to be approved by{" "}
-                <strong className="text-foreground">{approverLabel[role]}</strong> before you can access
-                the dashboard.
-              </p>
-              <p className="mt-2">Please contact your approver and ask them to log in and visit <strong>Manage Approvals</strong>.</p>
-            </div>
-            <Button className="w-full" onClick={() => navigate("/dashboard")}>
-              Check Approval Status
-            </Button>
-            <Button variant="outline" className="w-full" onClick={() => navigate("/login")}>
-              Return to Sign In
+
+          <CardContent>
+            <Button onClick={() => navigate("/login")} className="w-full">
+              Return to Login
             </Button>
           </CardContent>
         </Card>
@@ -110,77 +161,98 @@ const Register = () => {
     <div className="min-h-screen flex items-center justify-center px-4 py-8 bg-muted/30">
       <Card className="w-full max-w-lg">
         <CardHeader className="text-center">
-          <Link to="/" className="flex items-center justify-center gap-2 mb-2">
+          <Link to="/" className="flex justify-center mb-2">
             <Shield className="h-8 w-8 text-primary" />
           </Link>
-          <CardTitle className="text-2xl">Create your MediChain account</CardTitle>
-          <CardDescription>Join the blockchain-powered pharma supply chain</CardDescription>
+          <CardTitle>Create your MediChain account</CardTitle>
+          <CardDescription>Join the blockchain pharma network</CardDescription>
         </CardHeader>
+
         <CardContent>
-          <form onSubmit={handleRegister} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="fullName">Full Name</Label>
-              <Input id="fullName" placeholder="John Doe" value={fullName} onChange={e => setFullName(e.target.value)} required />
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+
+            {/* NAME */}
+            <div>
+              <Label>Full Name</Label>
+              <Input {...register("fullName")} />
+              {errors.fullName && <p className="text-xs text-destructive">{errors.fullName.message}</p>}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="regEmail">Email</Label>
-              <Input id="regEmail" type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} required />
+
+            {/* EMAIL */}
+            <div>
+              <Label>Email</Label>
+              <Input {...register("email")} type="email" />
+              {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
             </div>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="regPassword">Password</Label>
-                <Input id="regPassword" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required />
+
+            {/* PASSWORD */}
+            <div>
+              <Label>Password</Label>
+              <div className="relative">
+                <Input {...register("password")} type={showPw ? "text" : "password"} />
+                <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-2.5">
+                  {showPw ? <EyeOff /> : <Eye />}
+                </button>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <Input id="confirmPassword" type="password" placeholder="••••••••" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required />
-              </div>
+              {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
             </div>
-            <div className="space-y-2">
+
+            {/* CONFIRM */}
+            <div>
+              <Label>Confirm Password</Label>
+              <Input {...register("confirmPassword")} type="password" />
+              {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>}
+            </div>
+
+            {/* ROLE */}
+            <div>
               <Label>Role</Label>
-              <Select value={role} onValueChange={v => setRole(v as UserRole)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select onValueChange={(v) => setValue("role", v as UserRole)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
                 <SelectContent>
-                  {roles.map(r => (
+                  {roles.map((r) => (
                     <SelectItem key={r.value} value={r.value}>
-                      <span className="font-medium">{r.label}</span>
-                      <span className="text-muted-foreground text-xs ml-2">– {r.description}</span>
+                      {r.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {needsApproval && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  This role requires approval before dashboard access is granted.
-                </p>
-              )}
             </div>
+
+            {/* ORG */}
             {showOrgField && (
-              <div className="space-y-2">
-                <Label htmlFor="organization">Organization Name</Label>
-                <Input id="organization" placeholder="Your company or pharmacy name" value={organization} onChange={e => setOrganization(e.target.value)} required />
+              <div>
+                <Label>Organization</Label>
+                <Input {...register("organization")} />
               </div>
             )}
-            <Button type="button" variant="outline" className="w-full gap-2" onClick={connectWallet}>
-              <Wallet className="h-4 w-4" />
-              {walletConnected ? "Wallet Connected ✓" : "Connect MetaMask Wallet"}
-            </Button>
-            <Button type="submit" className="w-full gap-2">
-              <UserPlus className="h-4 w-4" />
-              Create Account
+
+            {/* WALLET */}
+            {wallet.isConnected ? (
+              <div className="flex items-center gap-2 border px-3 py-2 rounded">
+                <Wallet className="h-4 w-4" />
+                {wallet.address}
+              </div>
+            ) : (
+              <Button type="button" onClick={wallet.connect} className="w-full">
+                Connect Wallet
+              </Button>
+            )}
+
+            {/* SUBMIT */}
+            <Button type="submit" className="w-full">
+              <UserPlus className="mr-2 h-4 w-4" />
+              {isSubmitting ? "Creating..." : "Register"}
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="justify-center">
-          <p className="text-sm text-muted-foreground">
-            Already have an account?{" "}
-            <Link to="/login" className="text-primary font-medium hover:underline">Sign in</Link>
-          </p>
+
+        <CardFooter className="text-center">
+          <Link to="/login">Already have an account?</Link>
         </CardFooter>
       </Card>
     </div>
   );
-};
-
-export default Register;
+}

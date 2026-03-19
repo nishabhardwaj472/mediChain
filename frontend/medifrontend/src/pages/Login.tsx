@@ -1,36 +1,72 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { useAuth, UserRole } from "@/context/AuthContext";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useAuth } from "@/context/AuthContext";
+import { useWallet } from "@/hooks/useWallet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Shield, Wallet } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+import { Shield, Wallet, Eye, EyeOff, LogIn } from "lucide-react";
 
-const roles: { value: UserRole; label: string }[] = [
-  { value: "admin", label: "Admin" },
-  { value: "manufacturer", label: "Manufacturer" },
-  { value: "distributor", label: "Distributor" },
-  { value: "pharmacy", label: "Pharmacy" },
-  { value: "consumer", label: "Consumer" },
-];
+//
+// ✅ VALIDATION SCHEMA
+//
+const loginSchema = z.object({
+  email: z.string().email("Invalid email"),
+  password: z.string().min(1, "Password is required"),
+});
+
+type FormData = z.infer<typeof loginSchema>;
 
 const Login = () => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [role, setRole] = useState<UserRole>("consumer");
-  const [walletConnected, setWalletConnected] = useState(false);
   const { login } = useAuth();
+  const wallet = useWallet();
   const navigate = useNavigate();
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    login(email, role, walletConnected ? "0x7a3B...9f2E" : undefined);
-    navigate("/dashboard");
-  };
+  const [showPw, setShowPw] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const connectWallet = () => setWalletConnected(true);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<FormData>({
+    resolver: zodResolver(loginSchema),
+  });
+
+  //
+  // 🔐 SUBMIT HANDLER
+  //
+  const onSubmit = async (data: FormData) => {
+    try {
+      setIsSubmitting(true);
+
+      const walletAddress = wallet.isConnected
+        ? wallet.address
+        : undefined;
+
+      await login(data.email, data.password, walletAddress || "");
+
+      toast({
+        title: "Login successful",
+        description: "Welcome to MediChain",
+      });
+
+      navigate("/dashboard");
+    } catch (err: any) {
+      toast({
+        title: "Login failed",
+        description: err?.message || "Invalid credentials",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 bg-muted/30">
@@ -42,38 +78,104 @@ const Login = () => {
           <CardTitle className="text-2xl">Sign in to MediChain</CardTitle>
           <CardDescription>Access your supply chain dashboard</CardDescription>
         </CardHeader>
+
         <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+
+            {/* EMAIL */}
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} required />
+              <Label>Email</Label>
+              <Input
+                {...register("email")}
+                type="email"
+                placeholder="you@example.com"
+              />
+              {errors.email && (
+                <p className="text-xs text-destructive">
+                  {errors.email.message}
+                </p>
+              )}
             </div>
+
+            {/* PASSWORD */}
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required />
+              <Label>Password</Label>
+
+              <div className="relative">
+                <Input
+                  {...register("password")}
+                  type={showPw ? "text" : "password"}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setShowPw(!showPw)}
+                  className="absolute right-3 top-2.5 text-muted-foreground"
+                >
+                  {showPw ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+
+              {errors.password && (
+                <p className="text-xs text-destructive">
+                  {errors.password.message}
+                </p>
+              )}
             </div>
+
+            {/* WALLET */}
             <div className="space-y-2">
-              <Label>Role</Label>
-              <Select value={role} onValueChange={v => setRole(v as UserRole)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {roles.map(r => (
-                    <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>MetaMask Wallet</Label>
+
+              {wallet.isConnected ? (
+                <div className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                  <Wallet className="h-4 w-4 text-primary" />
+                  <span className="truncate font-mono text-xs">
+                    {wallet.address}
+                  </span>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={wallet.connect}
+                  disabled={wallet.isConnecting}
+                  className="w-full gap-2"
+                >
+                  <Wallet className="h-4 w-4" />
+                  {wallet.isConnecting
+                    ? "Connecting..."
+                    : "Connect MetaMask Wallet"}
+                </Button>
+              )}
             </div>
-            <Button type="button" variant="outline" className="w-full gap-2" onClick={connectWallet}>
-              <Wallet className="h-4 w-4" />
-              {walletConnected ? "Wallet Connected ✓" : "Connect MetaMask Wallet"}
+
+            {/* SUBMIT */}
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full"
+            >
+              <LogIn className="mr-2 h-4 w-4" />
+              {isSubmitting ? "Signing In..." : "Sign In"}
             </Button>
-            <Button type="submit" className="w-full">Sign In</Button>
           </form>
         </CardContent>
+
+        {/* FOOTER */}
         <div className="px-6 pb-6 text-center">
           <p className="text-sm text-muted-foreground">
             Don't have an account?{" "}
-            <Link to="/register" className="text-primary font-medium hover:underline">Register</Link>
+            <Link
+              to="/register"
+              className="text-primary font-medium hover:underline"
+            >
+              Register
+            </Link>
           </p>
         </div>
       </Card>

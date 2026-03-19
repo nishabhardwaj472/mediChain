@@ -1,9 +1,18 @@
 import { useState } from "react";
-import { useAuth, APPROVER_FOR, UserRole } from "@/context/AuthContext";
+import { useAuth, UserRole } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, XCircle, Clock, Users, ShieldCheck, Truck, Store, Factory } from "lucide-react";
+import {
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Users,
+  ShieldCheck,
+  Truck,
+  Store,
+  Factory,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const roleIconMap: Record<string, React.ElementType> = {
@@ -12,7 +21,10 @@ const roleIconMap: Record<string, React.ElementType> = {
   pharmacy: Store,
 };
 
-const roleBadgeVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+const roleBadgeVariant: Record<
+  string,
+  "default" | "secondary" | "destructive" | "outline"
+> = {
   manufacturer: "default",
   distributor: "secondary",
   pharmacy: "outline",
@@ -21,14 +33,16 @@ const roleBadgeVariant: Record<string, "default" | "secondary" | "destructive" |
 const Approvals = () => {
   const { user, pendingUsers, approveUser, rejectUser } = useAuth();
   const { toast } = useToast();
-  const [approving, setApproving] = useState<string | null>(null);
-  const [rejecting, setRejecting] = useState<string | null>(null);
+
+  const [loadingId, setLoadingId] = useState<string | null>(null);
 
   if (!user) return null;
 
-  // Which role can this user approve?
+  //
+  // 🔐 ROLE LOGIC
+  //
   const canApproveRole: UserRole | null =
-    user.role === "admin"
+    user.role === "pharmacy"
       ? "manufacturer"
       : user.role === "manufacturer"
       ? "distributor"
@@ -37,32 +51,56 @@ const Approvals = () => {
       : null;
 
   const myPending = canApproveRole
-    ? pendingUsers.filter(p => p.role === canApproveRole)
+    ? pendingUsers.filter((p) => p.role === canApproveRole)
     : [];
 
-  const handleApprove = (email: string, name: string) => {
-    setApproving(email);
-    setTimeout(() => {
-      approveUser(email);
-      setApproving(null);
-      toast({
-        title: "User Approved!",
-        description: `${name} now has full dashboard access.`,
-      });
-    }, 800);
-  };
+  //
+  // ✅ APPROVE
+  //
+  const handleApprove = async (id: string, name: string) => {
+    try {
+      setLoadingId(id);
 
-  const handleReject = (email: string, name: string) => {
-    setRejecting(email);
-    setTimeout(() => {
-      rejectUser(email);
-      setRejecting(null);
+      await approveUser(id); // 🔗 backend + blockchain
+
       toast({
-        title: "User Rejected",
-        description: `${name}'s registration has been rejected.`,
+        title: "User Approved",
+        description: `${name} is now approved on blockchain`,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Approval Failed",
+        description: err.message,
         variant: "destructive",
       });
-    }, 800);
+    } finally {
+      setLoadingId(null);
+    }
+  };
+
+  //
+  // ❌ REJECT
+  //
+  const handleReject = async (id: string, name: string) => {
+    try {
+      setLoadingId(id);
+
+      await rejectUser(id);
+
+      toast({
+        title: "User Rejected",
+        description: `${name} has been removed`,
+        variant: "destructive",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Rejection Failed",
+        description: err.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingId(null);
+    }
   };
 
   const approverLabel: Record<string, string> = {
@@ -73,125 +111,93 @@ const Approvals = () => {
 
   return (
     <div className="space-y-6">
+      {/* HEADER */}
       <div className="flex items-center gap-3">
         <ShieldCheck className="h-7 w-7 text-primary" />
         <div>
           <h1 className="text-2xl font-bold">Manage Approvals</h1>
           <p className="text-sm text-muted-foreground">
             {canApproveRole
-              ? `Approve or reject pending ${approverLabel[user.role]} to manage their dashboard access`
-              : "You do not have approval permissions for any role"}
+              ? `Approve or reject ${approverLabel[user.role]}`
+              : "No approval permissions"}
           </p>
         </div>
       </div>
 
+      {/* NO PERMISSION */}
       {!canApproveRole && (
         <Card>
-          <CardContent className="flex items-center gap-4 pt-6">
-            <ShieldCheck className="h-10 w-10 text-muted-foreground" />
-            <div>
-              <p className="font-medium">No Approval Permissions</p>
-              <p className="text-sm text-muted-foreground">
-                Your role (<strong>{user.role}</strong>) does not have the ability to approve other users.
-              </p>
-            </div>
+          <CardContent className="pt-6">
+            <p className="text-muted-foreground">
+              Your role ({user.role}) cannot approve users.
+            </p>
           </CardContent>
         </Card>
       )}
 
+      {/* APPROVAL LIST */}
       {canApproveRole && (
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {roleIconMap[canApproveRole] && (
-                  <span className="p-2 bg-primary/10 rounded-lg">
-                    {(() => { const Icon = roleIconMap[canApproveRole]; return <Icon className="h-5 w-5 text-primary" />; })()}
-                  </span>
-                )}
-                <div>
-                  <CardTitle>Pending {approverLabel[user.role]}</CardTitle>
-                  <CardDescription>
-                    {myPending.length === 0
-                      ? "No pending approvals"
-                      : `${myPending.length} user${myPending.length > 1 ? "s" : ""} awaiting your decision`}
-                  </CardDescription>
-                </div>
-              </div>
-              <Badge variant="secondary" className="text-sm px-3 py-1">
-                <Clock className="h-3.5 w-3.5 mr-1 inline" />
-                {myPending.length} Pending
-              </Badge>
-            </div>
+            <CardTitle>
+              Pending {approverLabel[user.role]}
+            </CardTitle>
+            <CardDescription>
+              {myPending.length === 0
+                ? "No pending users"
+                : `${myPending.length} pending approvals`}
+            </CardDescription>
           </CardHeader>
+
           <CardContent>
             {myPending.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground gap-3">
-                <CheckCircle2 className="h-12 w-12 text-green-500/70" />
-                <p className="font-medium">All caught up!</p>
-                <p className="text-sm">No pending {approverLabel[user.role].toLowerCase()} to review.</p>
+              <div className="text-center py-10 text-muted-foreground">
+                <CheckCircle2 className="mx-auto h-10 w-10 text-green-500" />
+                <p>All caught up</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {myPending.map(pending => (
+                {myPending.map((u) => (
                   <div
-                    key={pending.email}
-                    className="flex items-center justify-between p-4 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors"
+                    key={u._id}
+                    className="flex justify-between items-center p-4 border rounded-lg"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-lg">
-                        {pending.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <p className="font-medium">{pending.name}</p>
-                        <p className="text-sm text-muted-foreground">{pending.email}</p>
-                        {pending.organization && (
-                          <p className="text-xs text-muted-foreground">{pending.organization}</p>
-                        )}
-                      </div>
+                    <div>
+                      <p className="font-medium">{u.fullName}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {u.email}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={roleBadgeVariant[pending.role]} className="capitalize hidden sm:flex">
-                        {pending.role}
+
+                    <div className="flex gap-2">
+                      <Badge variant={roleBadgeVariant[u.role]}>
+                        {u.role}
                       </Badge>
-                      {/* Approve Button */}
+
+                      {/* APPROVE */}
                       <Button
                         size="sm"
-                        onClick={() => handleApprove(pending.email, pending.name)}
-                        disabled={approving === pending.email || rejecting === pending.email}
-                        className="gap-1.5 bg-green-600 hover:bg-green-700 text-white"
+                        disabled={loadingId === u._id}
+                        onClick={() =>
+                          handleApprove(u._id!, u.fullName || "")
+                        }
+                        className="bg-green-600 hover:bg-green-700 text-white"
                       >
-                        {approving === pending.email ? (
-                          <>
-                            <span className="animate-spin h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full" />
-                            Approving...
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                            Approve
-                          </>
-                        )}
+                        {loadingId === u._id
+                          ? "..."
+                          : "Approve"}
                       </Button>
-                      {/* Reject Button */}
+
+                      {/* REJECT */}
                       <Button
                         size="sm"
                         variant="destructive"
-                        onClick={() => handleReject(pending.email, pending.name)}
-                        disabled={approving === pending.email || rejecting === pending.email}
-                        className="gap-1.5"
+                        disabled={loadingId === u._id}
+                        onClick={() =>
+                          handleReject(u._id!, u.fullName || "")
+                        }
                       >
-                        {rejecting === pending.email ? (
-                          <>
-                            <span className="animate-spin h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full" />
-                            Rejecting...
-                          </>
-                        ) : (
-                          <>
-                            <XCircle className="h-3.5 w-3.5" />
-                            Reject
-                          </>
-                        )}
+                        Reject
                       </Button>
                     </div>
                   </div>
@@ -202,30 +208,19 @@ const Approvals = () => {
         </Card>
       )}
 
-      {/* Summary of who approves whom */}
+      {/* HIERARCHY */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Users className="h-4 w-4 text-muted-foreground" />
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
             Approval Hierarchy
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-2 text-sm">
-            {[
-              { approver: "Admin", target: "Manufacturers" },
-              { approver: "Manufacturer", target: "Distributors" },
-              { approver: "Distributor", target: "Pharmacies" },
-            ].map(row => (
-              <div key={row.approver} className="flex items-center gap-2 text-muted-foreground">
-                <ShieldCheck className="h-3.5 w-3.5 text-primary flex-shrink-0" />
-                <span>
-                  <strong className="text-foreground">{row.approver}</strong> approves &amp; rejects{" "}
-                  <strong className="text-foreground">{row.target}</strong>
-                </span>
-              </div>
-            ))}
-          </div>
+
+        <CardContent className="text-sm space-y-2">
+          <p><b>Admin</b> → Manufacturer</p>
+          <p><b>Manufacturer</b> → Distributor</p>
+          <p><b>Distributor</b> → Pharmacy</p>
         </CardContent>
       </Card>
     </div>
