@@ -3,12 +3,15 @@ import { useNavigate, Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+
 import { useAuth } from "@/hooks/useAuth";
-import { UserRole } from "@/types/auth";
+import { RegisterRole, UserRole } from "@/types/auth";
 import { useWallet } from "@/hooks/useWallet";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
 import {
   Card,
   CardContent,
@@ -17,6 +20,7 @@ import {
   CardDescription,
   CardFooter,
 } from "@/components/ui/card";
+
 import {
   Select,
   SelectContent,
@@ -24,12 +28,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Shield, Wallet, UserPlus, Clock, Eye, EyeOff } from "lucide-react";
+
+import {
+  Shield,
+  Wallet,
+  UserPlus,
+  Clock,
+  Eye,
+  EyeOff,
+} from "lucide-react";
+
 import { useToast } from "@/hooks/use-toast";
 
-//
-// ✅ SCHEMA
-//
+/* =====================================================
+   SCHEMA
+===================================================== */
 const registerSchema = z
   .object({
     fullName: z.string().min(2, "Name required"),
@@ -46,6 +59,9 @@ const registerSchema = z
 
 type FormData = z.infer<typeof registerSchema>;
 
+/* =====================================================
+   ROLE CONFIG
+===================================================== */
 const ROLES_PENDING_APPROVAL: UserRole[] = [
   "manufacturer",
   "distributor",
@@ -53,10 +69,26 @@ const ROLES_PENDING_APPROVAL: UserRole[] = [
 ];
 
 const roles: { value: UserRole; label: string; description: string }[] = [
-  { value: "manufacturer", label: "Manufacturer", description: "Register & track medicine batches" },
-  { value: "distributor", label: "Distributor", description: "Manage shipments & logistics" },
-  { value: "pharmacy", label: "Pharmacy", description: "Receive & dispense medicines" },
-  { value: "consumer", label: "Consumer", description: "Verify medicine authenticity" },
+  {
+    value: "manufacturer",
+    label: "Manufacturer",
+    description: "Register & track medicine batches",
+  },
+  {
+    value: "distributor",
+    label: "Distributor",
+    description: "Manage shipments & logistics",
+  },
+  {
+    value: "pharmacy",
+    label: "Pharmacy",
+    description: "Receive & dispense medicines",
+  },
+  {
+    value: "consumer",
+    label: "Consumer",
+    description: "Verify medicine authenticity",
+  },
 ];
 
 export default function Register() {
@@ -83,13 +115,19 @@ export default function Register() {
   const role = watch("role");
   const needsApproval = ROLES_PENDING_APPROVAL.includes(role);
 
-  //
-  // 🚀 SUBMIT
-  //
+  const showOrgField =
+    role === "manufacturer" ||
+    role === "distributor" ||
+    role === "pharmacy";
+
+  /* =====================================================
+     SUBMIT
+  ===================================================== */
   const onSubmit = async (data: FormData) => {
-    if (!wallet.address) {
+    if (!wallet.isConnected || !wallet.address) {
       toast({
-        title: "Connect wallet first",
+        title: "Wallet required",
+        description: "Please connect your wallet first",
         variant: "destructive",
       });
       return;
@@ -116,7 +154,9 @@ export default function Register() {
       }
     } catch (err: unknown) {
       toast({
-        title: err instanceof Error ? err.message : "Registration failed",
+        title: "Registration failed",
+        description:
+          err instanceof Error ? err.message : "Something went wrong",
         variant: "destructive",
       });
     } finally {
@@ -124,14 +164,9 @@ export default function Register() {
     }
   };
 
-  const showOrgField =
-    role === "manufacturer" ||
-    role === "distributor" ||
-    role === "pharmacy";
-
-  //
-  // ⏳ PENDING SCREEN
-  //
+  /* =====================================================
+     PENDING SCREEN
+  ===================================================== */
   if (registered && needsApproval) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4 py-8 bg-muted/30">
@@ -142,15 +177,15 @@ export default function Register() {
                 <Clock className="h-8 w-8 text-amber-500 animate-pulse" />
               </div>
             </div>
-            <CardTitle className="text-2xl">Account Created!</CardTitle>
+            <CardTitle className="text-2xl">Pending Approval</CardTitle>
             <CardDescription>
-              Your <strong>{role}</strong> account is pending approval.
+              Your <strong>{role}</strong> account is waiting for blockchain approval.
             </CardDescription>
           </CardHeader>
 
           <CardContent>
             <Button onClick={() => navigate("/login")} className="w-full">
-              Return to Login
+              Go to Login
             </Button>
           </CardContent>
         </Card>
@@ -158,6 +193,9 @@ export default function Register() {
     );
   }
 
+  /* =====================================================
+     UI
+  ===================================================== */
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-8 bg-muted/30">
       <Card className="w-full max-w-lg">
@@ -166,7 +204,9 @@ export default function Register() {
             <Shield className="h-8 w-8 text-primary" />
           </Link>
           <CardTitle>Create your MediChain account</CardTitle>
-          <CardDescription>Join the blockchain pharma network</CardDescription>
+          <CardDescription>
+            Join the blockchain pharma network
+          </CardDescription>
         </CardHeader>
 
         <CardContent>
@@ -176,39 +216,62 @@ export default function Register() {
             <div>
               <Label>Full Name</Label>
               <Input {...register("fullName")} />
-              {errors.fullName && <p className="text-xs text-destructive">{errors.fullName.message}</p>}
+              {errors.fullName && (
+                <p className="text-xs text-destructive">
+                  {errors.fullName.message}
+                </p>
+              )}
             </div>
 
             {/* EMAIL */}
             <div>
               <Label>Email</Label>
               <Input {...register("email")} type="email" />
-              {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+              {errors.email && (
+                <p className="text-xs text-destructive">
+                  {errors.email.message}
+                </p>
+              )}
             </div>
 
             {/* PASSWORD */}
             <div>
               <Label>Password</Label>
               <div className="relative">
-                <Input {...register("password")} type={showPw ? "text" : "password"} />
-                <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-2.5">
+                <Input
+                  {...register("password")}
+                  type={showPw ? "text" : "password"}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPw(!showPw)}
+                  className="absolute right-3 top-2.5"
+                >
                   {showPw ? <EyeOff /> : <Eye />}
                 </button>
               </div>
-              {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
+              {errors.password && (
+                <p className="text-xs text-destructive">
+                  {errors.password.message}
+                </p>
+              )}
             </div>
 
-            {/* CONFIRM */}
+            {/* CONFIRM PASSWORD */}
             <div>
               <Label>Confirm Password</Label>
               <Input {...register("confirmPassword")} type="password" />
-              {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>}
+              {errors.confirmPassword && (
+                <p className="text-xs text-destructive">
+                  {errors.confirmPassword.message}
+                </p>
+              )}
             </div>
 
             {/* ROLE */}
             <div>
               <Label>Role</Label>
-              <Select onValueChange={(v) => setValue("role", v as "manufacturer" | "distributor" | "pharmacy" | "consumer")}>
+              <Select onValueChange={(v) => setValue("role", v as RegisterRole)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
@@ -222,7 +285,7 @@ export default function Register() {
               </Select>
             </div>
 
-            {/* ORG */}
+            {/* ORGANIZATION */}
             {showOrgField && (
               <div>
                 <Label>Organization</Label>
@@ -232,18 +295,26 @@ export default function Register() {
 
             {/* WALLET */}
             {wallet.isConnected ? (
-              <div className="flex items-center gap-2 border px-3 py-2 rounded">
+              <div className="flex items-center gap-2 border px-3 py-2 rounded text-sm">
                 <Wallet className="h-4 w-4" />
                 {wallet.address}
               </div>
             ) : (
-              <Button type="button" onClick={wallet.connect} className="w-full">
+              <Button
+                type="button"
+                onClick={wallet.connect}
+                className="w-full"
+              >
                 Connect Wallet
               </Button>
             )}
 
             {/* SUBMIT */}
-            <Button type="submit" className="w-full">
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={isSubmitting || !wallet.isConnected}
+            >
               <UserPlus className="mr-2 h-4 w-4" />
               {isSubmitting ? "Creating..." : "Register"}
             </Button>

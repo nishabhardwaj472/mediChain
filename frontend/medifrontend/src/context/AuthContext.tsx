@@ -13,12 +13,15 @@ import {
   getCurrentUser,
   approveUser as approveUserAPI,
   rejectUser as rejectUserAPI,
-  getUsersByHierarchy,
+  getPendingUsers,
 } from "@/services/auth.service";
 
-import { UserRole, AuthUser } from "@/types/auth";
+import { UserRole, AuthUser, RegisterRole } from "@/types/auth";
 
-interface AuthContextType {
+/* =====================================================
+   TYPES
+===================================================== */
+export interface AuthContextType {
   user: AuthUser | null;
   pendingUsers: AuthUser[];
   loading: boolean;
@@ -28,7 +31,7 @@ interface AuthContextType {
   register: (data: {
     fullName: string;
     email: string;
-    role: UserRole;
+    role: RegisterRole;
     password: string;
     walletAddress: string;
   }) => Promise<void>;
@@ -40,80 +43,83 @@ interface AuthContextType {
   refreshUser: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | null>(null);
+/* =====================================================
+   CONTEXT
+===================================================== */
+export const AuthContext = createContext<AuthContextType | null>(null);
 
-//
-// 🔧 PROVIDER
-//
+/* =====================================================
+   PROVIDER
+===================================================== */
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [pendingUsers, setPendingUsers] = useState<AuthUser[]>([]);
   const [loading, setLoading] = useState(true);
 
-  //
-  // 🔄 LOAD USER ON APP START
-  //
+  /* =====================================================
+     INITIALIZE APP
+  ===================================================== */
   useEffect(() => {
-    const initialize = async () => {
-      try {
-        const res = await getCurrentUser();
-        setUser(res.data);
-        await fetchPendingUsers();
-      } catch {
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
-    };
     initialize();
   }, []);
 
-  const init = async () => {
+  const initialize = async () => {
     try {
       const res = await getCurrentUser();
-      setUser(res.data);
+      const currentUser = res.data;
 
-      // load pending users if user has authority
-      await fetchPendingUsers();
+      setUser(currentUser);
+
+      if (canManageApprovals(currentUser.role)) {
+        await fetchPendingUsers();
+      }
     } catch {
       setUser(null);
+      setPendingUsers([]);
     } finally {
       setLoading(false);
     }
   };
 
-  //
-  // 🔐 LOGIN
-  //
+  /* =====================================================
+     LOGIN
+  ===================================================== */
   const login = async (
     email: string,
     password: string,
     walletAddress: string
   ) => {
-    setLoading(true);
     try {
+      setLoading(true);
+
       const res = await loginUser({ email, password, walletAddress });
+      const loggedUser = res.user;
 
-      setUser(res.user);
+      setUser(loggedUser);
 
-      await fetchPendingUsers();
+      if (canManageApprovals(loggedUser.role)) {
+        await fetchPendingUsers();
+      } else {
+        setPendingUsers([]);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  //
-  // 📝 REGISTER
-  //
+  /* =====================================================
+     REGISTER
+  ===================================================== */
   const register = async (data: {
     fullName: string;
     email: string;
-    role: UserRole;
+    role: RegisterRole;
     password: string;
     walletAddress: string;
   }) => {
-    setLoading(true);
     try {
+      setLoading(true);
+
       await registerUser(data);
 
       // auto login after register
@@ -123,46 +129,49 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  //
-  // 🚪 LOGOUT
-  //
+  /* =====================================================
+     LOGOUT
+  ===================================================== */
   const logout = async () => {
-    await logoutUser();
-    setUser(null);
-    setPendingUsers([]);
+    try {
+      await logoutUser();
+    } finally {
+      setUser(null);
+      setPendingUsers([]);
+    }
   };
 
-  //
-  // 📊 FETCH USERS FOR APPROVAL
-  //
+  /* =====================================================
+     FETCH PENDING USERS
+  ===================================================== */
   const fetchPendingUsers = async () => {
     try {
-      const res = await getUsersByHierarchy();
+      const res = await getPendingUsers();
       setPendingUsers(res.data || []);
     } catch {
       setPendingUsers([]);
     }
   };
 
-  //
-  // ✅ APPROVE USER (BLOCKCHAIN)
-  //
+  /* =====================================================
+     APPROVE USER
+  ===================================================== */
   const approveUser = async (userId: string) => {
     await approveUserAPI(userId);
     await fetchPendingUsers();
   };
 
-  //
-  // ❌ REJECT USER
-  //
+  /* =====================================================
+     REJECT USER
+  ===================================================== */
   const rejectUser = async (userId: string) => {
     await rejectUserAPI(userId);
     await fetchPendingUsers();
   };
 
-  //
-  // 🔄 REFRESH USER (useful after approval)
-  //
+  /* =====================================================
+     REFRESH USER
+  ===================================================== */
   const refreshUser = async () => {
     try {
       const res = await getCurrentUser();
@@ -170,6 +179,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch {
       setUser(null);
     }
+  };
+
+  /* =====================================================
+     ROLE CHECK
+  ===================================================== */
+  const canManageApprovals = (role: UserRole) => {
+    return ["admin", "manufacturer", "distributor"].includes(role);
   };
 
   return (
@@ -195,4 +211,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-export { AuthContext };
+/* =====================================================
+   HOOK
+===================================================== */
+export const useAuth = (): AuthContextType => {
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error("useAuth must be used within AuthProvider");
+  }
+
+  return context;
+};

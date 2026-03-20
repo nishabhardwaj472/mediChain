@@ -84,7 +84,7 @@ const DashboardLayout = () => {
         <DashboardSidebar />
         <div className="flex-1 flex flex-col">
           <DashboardNavbar />
-          {user && !user.isApproved ? (
+          {user && ["manufacturer", "distributor", "pharmacy"].includes(user.role) && (!user.isApproved || !user.onChainApproved) ? (
             <PendingApprovalScreen />
           ) : (
             <main className="flex-1 p-4 md:p-6 overflow-auto">

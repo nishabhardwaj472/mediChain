@@ -1,27 +1,30 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { UserRole } from "@/types/auth";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { UserRole, APPROVER_FOR } from "@/types/auth";
+
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+
 import {
   CheckCircle2,
-  XCircle,
-  Clock,
-  Users,
   ShieldCheck,
-  Truck,
-  Store,
-  Factory,
+  Users,
+  Loader2,
 } from "lucide-react";
+
 import { useToast } from "@/hooks/use-toast";
 
-const roleIconMap: Record<string, React.ElementType> = {
-  manufacturer: Factory,
-  distributor: Truck,
-  pharmacy: Store,
-};
-
+/* =====================================================
+   ROLE UI CONFIG
+===================================================== */
 const roleBadgeVariant: Record<
   string,
   "default" | "secondary" | "destructive" | "outline"
@@ -31,6 +34,15 @@ const roleBadgeVariant: Record<
   pharmacy: "outline",
 };
 
+const approverLabel: Record<string, string> = {
+  admin: "Manufacturers",
+  manufacturer: "Distributors",
+  distributor: "Pharmacies",
+};
+
+/* =====================================================
+   COMPONENT
+===================================================== */
 const Approvals = () => {
   const { user, pendingUsers, approveUser, rejectUser } = useAuth();
   const { toast } = useToast();
@@ -39,39 +51,44 @@ const Approvals = () => {
 
   if (!user) return null;
 
-  //
-  // 🔐 ROLE LOGIC
-  //
-  const canApproveRole: UserRole | null =
-    user.role === "pharmacy"
-      ? "manufacturer"
-      : user.role === "manufacturer"
-        ? "distributor"
-        : user.role === "distributor"
-          ? "pharmacy"
-          : null;
+  /* =====================================================
+     🔐 ROLE LOGIC
+  ===================================================== */
+  const canApproveRole =
+    user.role in APPROVER_FOR
+      ? (APPROVER_FOR[user.role] as UserRole)
+      : null;
 
-  const myPending = canApproveRole
-    ? pendingUsers.filter((p) => p.role === canApproveRole)
-    : [];
+  // extra safety (backend already filters)
+  const filteredUsers = pendingUsers.filter(
+    (u) => u.role === canApproveRole
+  );
 
-  //
-  // ✅ APPROVE
-  //
+  /* =====================================================
+     ✅ APPROVE (BLOCKCHAIN TX)
+  ===================================================== */
   const handleApprove = async (id: string, name: string) => {
     try {
       setLoadingId(id);
 
-      await approveUser(id); // 🔗 backend + blockchain
+      toast({
+        title: "Processing...",
+        description: "Waiting for blockchain confirmation",
+      });
+
+      await approveUser(id); // backend → blockchain → DB sync
 
       toast({
-        title: "User Approved",
+        title: "Approved",
         description: `${name} is now approved on blockchain`,
       });
     } catch (err: unknown) {
       toast({
         title: "Approval Failed",
-        description: err instanceof Error ? err.message : "An unknown error occurred",
+        description:
+          err instanceof Error
+            ? err.message
+            : "Blockchain transaction failed",
         variant: "destructive",
       });
     } finally {
@@ -79,9 +96,9 @@ const Approvals = () => {
     }
   };
 
-  //
-  // ❌ REJECT
-  //
+  /* =====================================================
+     ❌ REJECT
+  ===================================================== */
   const handleReject = async (id: string, name: string) => {
     try {
       setLoadingId(id);
@@ -89,14 +106,17 @@ const Approvals = () => {
       await rejectUser(id);
 
       toast({
-        title: "User Rejected",
-        description: `${name} has been removed`,
+        title: "Rejected",
+        description: `${name} has been rejected`,
         variant: "destructive",
       });
     } catch (err: unknown) {
       toast({
         title: "Rejection Failed",
-        description: err instanceof Error ? err.message : "An unknown error occurred",
+        description:
+          err instanceof Error
+            ? err.message
+            : "Something went wrong",
         variant: "destructive",
       });
     } finally {
@@ -104,12 +124,9 @@ const Approvals = () => {
     }
   };
 
-  const approverLabel: Record<string, string> = {
-    admin: "Manufacturers",
-    manufacturer: "Distributors",
-    distributor: "Pharmacies",
-  };
-
+  /* =====================================================
+     UI
+  ===================================================== */
   return (
     <div className="space-y-6">
       {/* HEADER */}
@@ -119,7 +136,7 @@ const Approvals = () => {
           <h1 className="text-2xl font-bold">Manage Approvals</h1>
           <p className="text-sm text-muted-foreground">
             {canApproveRole
-              ? `Approve or reject ${approverLabel[user.role]}`
+              ? `Approve ${approverLabel[user.role]} on blockchain`
               : "No approval permissions"}
           </p>
         </div>
@@ -144,25 +161,26 @@ const Approvals = () => {
               Pending {approverLabel[user.role]}
             </CardTitle>
             <CardDescription>
-              {myPending.length === 0
+              {filteredUsers.length === 0
                 ? "No pending users"
-                : `${myPending.length} pending approvals`}
+                : `${filteredUsers.length} awaiting blockchain approval`}
             </CardDescription>
           </CardHeader>
 
           <CardContent>
-            {myPending.length === 0 ? (
+            {filteredUsers.length === 0 ? (
               <div className="text-center py-10 text-muted-foreground">
                 <CheckCircle2 className="mx-auto h-10 w-10 text-green-500" />
-                <p>All caught up</p>
+                <p>All users are approved</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {myPending.map((u) => (
+                {filteredUsers.map((u) => (
                   <div
                     key={u._id}
                     className="flex justify-between items-center p-4 border rounded-lg"
                   >
+                    {/* USER INFO */}
                     <div>
                       <p className="font-medium">{u.fullName}</p>
                       <p className="text-sm text-muted-foreground">
@@ -170,7 +188,8 @@ const Approvals = () => {
                       </p>
                     </div>
 
-                    <div className="flex gap-2">
+                    {/* ACTIONS */}
+                    <div className="flex items-center gap-2">
                       <Badge variant={roleBadgeVariant[u.role]}>
                         {u.role}
                       </Badge>
@@ -184,9 +203,11 @@ const Approvals = () => {
                         }
                         className="bg-green-600 hover:bg-green-700 text-white"
                       >
-                        {loadingId === u._id
-                          ? "..."
-                          : "Approve"}
+                        {loadingId === u._id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          "Approve"
+                        )}
                       </Button>
 
                       {/* REJECT */}

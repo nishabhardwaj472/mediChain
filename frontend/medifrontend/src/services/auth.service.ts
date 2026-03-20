@@ -1,30 +1,50 @@
 const BASE_URL = "http://localhost:3000/api/v1";
 
+/* =====================================================
+   TOKEN HANDLING
+===================================================== */
 const getToken = () => localStorage.getItem("accessToken");
 
-const request = async (endpoint: string, options: RequestInit = {}) => {
-  const res = await fetch(`${BASE_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: getToken() ? `Bearer ${getToken()}` : "",
-      ...(options.headers || {}),
-    },
-    credentials: "include", // important for cookies (refreshToken)
-  });
-
-  const data = await res.json();
-
-  if (!res.ok) {
-    throw new Error(data.message || "Something went wrong");
-  }
-
-  return data;
+const setToken = (token: string) => {
+  localStorage.setItem("accessToken", token);
 };
 
-//
+const removeToken = () => {
+  localStorage.removeItem("accessToken");
+};
+
+/* =====================================================
+   CORE REQUEST HANDLER
+===================================================== */
+const request = async (endpoint: string, options: RequestInit = {}) => {
+  try {
+    const res = await fetch(`${BASE_URL}${endpoint}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+        ...(options.headers || {}),
+      },
+      credentials: "include",
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.message || "Request failed");
+    }
+
+    return data;
+  } catch (error: any) {
+    throw new Error(error.message || "Network error");
+  }
+};
+
+/* =====================================================
+   AUTH APIs
+===================================================== */
+
 // 🔐 LOGIN
-//
 export const loginUser = async (payload: {
   email: string;
   password: string;
@@ -35,17 +55,16 @@ export const loginUser = async (payload: {
     body: JSON.stringify(payload),
   });
 
-  localStorage.setItem("accessToken", res.data.accessToken);
-  return res.data;
+  setToken(res.data.accessToken);
+
+  return res.data; // { user, accessToken }
 };
 
-//
 // 📝 REGISTER
-//
 export const registerUser = async (payload: {
   fullName: string;
   email: string;
-  role: string;
+  role: "manufacturer" | "distributor" | "pharmacy" | "consumer";
   password: string;
   walletAddress: string;
 }) => {
@@ -55,29 +74,38 @@ export const registerUser = async (payload: {
   });
 };
 
-//
 // 🚪 LOGOUT
-//
 export const logoutUser = async () => {
   await request("/users/logout", {
     method: "POST",
   });
 
-  localStorage.removeItem("accessToken");
+  removeToken();
 };
 
-//
-// 👤 GET CURRENT USER
-//
+/* =====================================================
+   USER APIs
+===================================================== */
+
+// 👤 CURRENT USER
 export const getCurrentUser = async () => {
   return request("/users/me", {
     method: "GET",
   });
 };
 
-//
-// ✅ APPROVE USER (ADMIN FLOW)
-//
+/* =====================================================
+   APPROVAL SYSTEM
+===================================================== */
+
+// 📊 GET PENDING USERS
+export const getPendingUsers = async () => {
+  return request("/users/pending-users", {
+    method: "GET",
+  });
+};
+
+// ✅ APPROVE USER
 export const approveUser = async (userId: string) => {
   return request("/users/approve", {
     method: "POST",
@@ -85,9 +113,7 @@ export const approveUser = async (userId: string) => {
   });
 };
 
-//
 // ❌ REJECT USER
-//
 export const rejectUser = async (userId: string) => {
   return request("/users/reject", {
     method: "POST",
@@ -95,20 +121,13 @@ export const rejectUser = async (userId: string) => {
   });
 };
 
-//
-// 📊 GET USERS BY ROLE HIERARCHY
-//
-export const getUsersByHierarchy = async () => {
-  return request("/users/hierarchy", {
-    method: "GET",
-  });
-};
+/* =====================================================
+   BLOCKCHAIN
+===================================================== */
 
-//
-// 🔗 VERIFY USER ON BLOCKCHAIN
-//
+// 🔗 VERIFY USER ON CHAIN
 export const verifyUserOnChain = async (walletAddress: string) => {
-  return request("/users/verify", {
+  return request("/users/verify-onchain", {
     method: "POST",
     body: JSON.stringify({ walletAddress }),
   });
