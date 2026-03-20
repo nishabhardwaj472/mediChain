@@ -16,20 +16,7 @@ import {
   getUsersByHierarchy,
 } from "@/services/auth.service";
 
-export type UserRole =
-  | "manufacturer"
-  | "distributor"
-  | "pharmacy"
-  | "consumer";
-
-export interface AuthUser {
-  _id?: string;
-  email: string;
-  role: UserRole;
-  fullName?: string;
-  walletAddress?: string;
-  isApproved: boolean;
-}
+import { UserRole, AuthUser } from "@/types/auth";
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -67,7 +54,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // 🔄 LOAD USER ON APP START
   //
   useEffect(() => {
-    init();
+    const initialize = async () => {
+      try {
+        const res = await getCurrentUser();
+        setUser(res.data);
+        await fetchPendingUsers();
+      } catch {
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    initialize();
   }, []);
 
   const init = async () => {
@@ -197,13 +195,4 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-//
-// 🔗 HOOK
-//
-export const useAuth = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error("useAuth must be used within AuthProvider");
-  }
-  return ctx;
-};
+export { AuthContext };

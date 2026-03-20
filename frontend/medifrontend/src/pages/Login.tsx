@@ -3,7 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 import { useWallet } from "@/hooks/useWallet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,10 +57,10 @@ const Login = () => {
       });
 
       navigate("/dashboard");
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({
         title: "Login failed",
-        description: err?.message || "Invalid credentials",
+        description: err instanceof Error ? err.message : "Invalid credentials",
         variant: "destructive",
       });
     } finally {

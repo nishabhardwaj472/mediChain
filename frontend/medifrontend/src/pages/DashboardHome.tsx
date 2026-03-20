@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, Truck, CheckCircle2, AlertTriangle } from "lucide-react";
 import MedicineCard from "@/components/MedicineCard";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 
 const stats = [
   { title: "Total Batches", value: "1,247", icon: Package, color: "text-primary" },

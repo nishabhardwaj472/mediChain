@@ -29,13 +29,13 @@ connectDB()
 
 
 
-//user Routes////
-// import userRouter from "./src/routes/user.routes.js"
+// Routes imports
+import userRouter from "./src/routes/user.route.js"
+import medicineRouter from "./src/routes/medicine.routes.js"
 
-// app.use("/api/v1/users", userRouter)
-
-// import contractRouter from "./src/routes/contract.routes.js"
-// app.use("/api/v1/elections", contractRouter);
+// Route registration
+app.use("/api/v1/users", userRouter)
+app.use("/api/v1/medicine", medicineRouter)
 
 
 

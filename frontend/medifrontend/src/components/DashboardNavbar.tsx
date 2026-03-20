@@ -1,6 +1,6 @@
 import { Bell, User, Wallet } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 

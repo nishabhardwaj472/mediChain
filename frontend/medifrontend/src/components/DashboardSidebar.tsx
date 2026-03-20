@@ -3,7 +3,7 @@ import {
   FileBarChart, LogOut, Truck, Store, Shield, ShieldCheck
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -38,10 +38,10 @@ const DashboardSidebar = () => {
   // Count only the pending users that the current user can approve
   const myPendingCount = canManageApprovals
     ? pendingUsers.filter(p =>
-        (user.role === "admin" && p.role === "manufacturer") ||
-        (user.role === "manufacturer" && p.role === "distributor") ||
-        (user.role === "distributor" && p.role === "pharmacy")
-      ).length
+      (user.role === "admin" && p.role === "manufacturer") ||
+      (user.role === "manufacturer" && p.role === "distributor") ||
+      (user.role === "distributor" && p.role === "pharmacy")
+    ).length
     : 0;
 
   const handleLogout = () => {

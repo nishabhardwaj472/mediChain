@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useAuth, UserRole } from "@/context/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
+import { UserRole } from "@/types/auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,10 +46,10 @@ const Approvals = () => {
     user.role === "pharmacy"
       ? "manufacturer"
       : user.role === "manufacturer"
-      ? "distributor"
-      : user.role === "distributor"
-      ? "pharmacy"
-      : null;
+        ? "distributor"
+        : user.role === "distributor"
+          ? "pharmacy"
+          : null;
 
   const myPending = canApproveRole
     ? pendingUsers.filter((p) => p.role === canApproveRole)
@@ -67,10 +68,10 @@ const Approvals = () => {
         title: "User Approved",
         description: `${name} is now approved on blockchain`,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({
         title: "Approval Failed",
-        description: err.message,
+        description: err instanceof Error ? err.message : "An unknown error occurred",
         variant: "destructive",
       });
     } finally {
@@ -92,10 +93,10 @@ const Approvals = () => {
         description: `${name} has been removed`,
         variant: "destructive",
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({
         title: "Rejection Failed",
-        description: err.message,
+        description: err instanceof Error ? err.message : "An unknown error occurred",
         variant: "destructive",
       });
     } finally {

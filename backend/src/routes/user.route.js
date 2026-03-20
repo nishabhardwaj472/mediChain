@@ -1,14 +1,14 @@
 import express from "express";
 import {
-  loginUser,
-  registerUser,
-  logoutUser,
-  getCurrentUser,
-  approveUser,
-  rejectUser,
-  getUsersByHierarchy,
-  verifyUserOnChain,
-} from "../controllers/user.controller.js";
+   loginUser,
+   registerUser,
+   logoutUser,
+   getCurrentUser,
+   approveUser,
+   rejectUser,
+   getUsersByHierarchy,
+   verifyUserOnChain,
+} from "../controllers/user.controllers.js";
 
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 

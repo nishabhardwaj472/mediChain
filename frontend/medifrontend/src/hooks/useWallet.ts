@@ -17,7 +17,11 @@ interface WalletState {
 
 declare global {
   interface Window {
-    ethereum?: any;
+    ethereum?: {
+      request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+      on: (event: string, handler: (...args: unknown[]) => void) => void;
+      removeListener: (event: string, handler: (...args: unknown[]) => void) => void;
+    };
   }
 }
 
@@ -70,8 +74,8 @@ export function useWallet(): WalletState {
       await checkNetwork();
       setIsConnecting(false);
       return addr;
-    } catch (err: any) {
-      setError(err.message || "Failed to connect wallet");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to connect wallet");
       setIsConnecting(false);
       return null;
     }
@@ -88,8 +92,8 @@ export function useWallet(): WalletState {
       const provider = new BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       return await signer.signMessage(message);
-    } catch (err: any) {
-      setError(err.message || "Failed to sign message");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to sign message");
       return null;
     }
   }, [address]);
@@ -101,8 +105,9 @@ export function useWallet(): WalletState {
         method: "wallet_switchEthereumChain",
         params: [{ chainId: SEPOLIA_CHAIN_ID }],
       });
-    } catch (err: any) {
-      if (err.code === 4902) {
+    } catch (err: unknown) {
+      const error = err as { code?: number };
+      if (error.code === 4902) {
         await window.ethereum.request({
           method: "wallet_addEthereumChain",
           params: [{

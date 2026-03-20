@@ -3,7 +3,8 @@ import { useNavigate, Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useAuth, UserRole } from "@/context/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
+import { UserRole } from "@/types/auth";
 import { useWallet } from "@/hooks/useWallet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -113,9 +114,9 @@ export default function Register() {
         });
         navigate("/dashboard");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({
-        title: err.message || "Registration failed",
+        title: err instanceof Error ? err.message : "Registration failed",
         variant: "destructive",
       });
     } finally {
@@ -207,7 +208,7 @@ export default function Register() {
             {/* ROLE */}
             <div>
               <Label>Role</Label>
-              <Select onValueChange={(v) => setValue("role", v as UserRole)}>
+              <Select onValueChange={(v) => setValue("role", v as "manufacturer" | "distributor" | "pharmacy" | "consumer")}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>

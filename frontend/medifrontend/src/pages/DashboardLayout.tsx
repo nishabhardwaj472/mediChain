@@ -2,7 +2,8 @@ import { Outlet, Navigate, useNavigate } from "react-router-dom";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import DashboardSidebar from "@/components/DashboardSidebar";
 import DashboardNavbar from "@/components/DashboardNavbar";
-import { useAuth, APPROVER_FOR } from "@/context/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
+import { APPROVER_FOR } from "@/types/auth";
 import { Clock, ShieldOff, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 

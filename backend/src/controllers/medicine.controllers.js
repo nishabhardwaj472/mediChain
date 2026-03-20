@@ -5,8 +5,10 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
+import { Medicine } from "../models/Medicine.model.js";
+
 //
-// ✅ REGISTER MEDICINE (BLOCKCHAIN)
+// ✅ REGISTER MEDICINE (BLOCKCHAIN + MONGODB)
 //
 export const registerMedicine = asyncHandler(async (req, res) => {
   const {
@@ -58,6 +60,35 @@ export const registerMedicine = asyncHandler(async (req, res) => {
 
   await tx.wait();
 
+  // 🏥 SAVE TO MONGODB
+  const medicine = await Medicine.create({
+    name,
+    batchId,
+    manufacturerName,
+    licenseNo,
+    quantity,
+    manufactureDate,
+    expiryDate,
+    description,
+    manufacturer: user.walletAddress,
+    currentHolder: user.walletAddress,
+    ownerRole: "Manufacturer",
+    qrHash,
+    qrDataString,
+    imageUrl,
+    status: "Registered",
+    history: [
+      {
+        from: "0x0000000000000000000000000000000000000000",
+        to: user.walletAddress,
+        location: "Manufacturer Facility",
+        status: "Registered",
+        timestamp: Math.floor(Date.now() / 1000),
+        transactionHash: tx.hash,
+      },
+    ],
+  });
+
   return res.status(200).json(
     new ApiResponse(
       200,
@@ -65,8 +96,9 @@ export const registerMedicine = asyncHandler(async (req, res) => {
         txHash: tx.hash,
         qrHash,
         imageUrl,
+        medicine,
       },
-      "Medicine registered on blockchain"
+      "Medicine registered on blockchain & database"
     )
   );
 });
@@ -80,7 +112,7 @@ export const getMedicineByBatchId = asyncHandler(async (req, res) => {
   const data = await contract.getMedicine(batchId);
 
   if (!data.exists) {
-    throw new ApiError(404, "Medicine not found");
+    throw new ApiError(404, "Medicine not found on blockchain");
   }
 
   return res.status(200).json(
@@ -105,13 +137,14 @@ export const getMedicineByBatchId = asyncHandler(async (req, res) => {
 });
 
 //
-// ✅ UPDATE SHIPMENT (BLOCKCHAIN)
+// ✅ UPDATE SHIPMENT (BLOCKCHAIN + MONGODB)
 //
 export const updateShipment = asyncHandler(async (req, res) => {
   const { batchId, toAddress, location, status } = req.body;
 
   const user = req.user;
 
+  // 🧾 CALL BLOCKCHAIN
   const tx = await contract.updateShipment(
     batchId,
     toAddress,
@@ -121,30 +154,65 @@ export const updateShipment = asyncHandler(async (req, res) => {
 
   await tx.wait();
 
+  // 🏥 UPDATE MONGODB
+  const medicine = await Medicine.findOne({ batchId });
+  if (medicine) {
+    medicine.status = "InTransit";
+    medicine.currentHolder = toAddress;
+    medicine.history.push({
+      from: user.walletAddress,
+      to: toAddress,
+      location: location,
+      status: status,
+      timestamp: Math.floor(Date.now() / 1000),
+      transactionHash: tx.hash,
+    });
+    await medicine.save();
+  }
+
   return res.status(200).json(
     new ApiResponse(
       200,
       { txHash: tx.hash },
-      "Shipment updated on blockchain"
+      "Shipment updated on blockchain & database"
     )
   );
 });
 
 //
-// ✅ CONFIRM RECEIPT (BLOCKCHAIN)
+// ✅ CONFIRM RECEIPT (BLOCKCHAIN + MONGODB)
 //
 export const confirmReceipt = asyncHandler(async (req, res) => {
   const { batchId, location } = req.body;
+  const user = req.user;
 
+  // 🧾 CALL BLOCKCHAIN
   const tx = await contract.confirmReceipt(batchId, location);
 
   await tx.wait();
+
+  // 🏥 UPDATE MONGODB
+  const medicine = await Medicine.findOne({ batchId });
+  if (medicine) {
+    medicine.status = "Delivered";
+    medicine.currentHolder = user.walletAddress;
+    medicine.ownerRole = user.role === "pharmacy" ? "Pharmacy" : "Distributor";
+    medicine.history.push({
+      from: medicine.currentHolder,
+      to: user.walletAddress,
+      location: location,
+      status: "Delivered",
+      timestamp: Math.floor(Date.now() / 1000),
+      transactionHash: tx.hash,
+    });
+    await medicine.save();
+  }
 
   return res.status(200).json(
     new ApiResponse(
       200,
       { txHash: tx.hash },
-      "Receipt confirmed on blockchain"
+      "Receipt confirmed on blockchain & database"
     )
   );
 });

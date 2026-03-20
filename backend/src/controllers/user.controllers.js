@@ -10,7 +10,7 @@ export const loginUser = async (req, res) => {
     const { email, password, walletAddress } = req.body;
 
     // 🔐 Admin bypass (demo only)
-    if (email === "ayushjais766@gmail.com" && password === "ayush123") {
+    if (email === "ayushjais766@gmail.com" && password === "ayush123" && walletAddress ==="0x1b0a9d47f9428fa43605b0ca087062a4c367ccf5") {
       return res.status(200).json({
         success: true,
         message: "Admin login successful",
