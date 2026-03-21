@@ -31,7 +31,7 @@ const TrackMedicine = () => {
     let stage = "Unknown";
 
     try {
-      const userRes = await getUserByWallet(tx.to);
+      const userRes = await getUserByWallet(tx.to?.toLowerCase());
 
       const role = userRes.data.role;
 

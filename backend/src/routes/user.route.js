@@ -3,9 +3,9 @@ import {
   loginUser,
   registerUser,
   logoutUser,
-//   getCurrentUser,
+  //   getCurrentUser,
   approveUser,
-//   rejectUser,
+  //   rejectUser,
   getPendingUsers,
   verifyUserOnChain,
   getUserByWallet,
@@ -22,6 +22,7 @@ const router = express.Router();
 router.post("/register", registerUser);
 router.post("/login", loginUser);
 router.post("/verify-onchain", verifyUserOnChain);
+router.get("/by-wallet/:wallet", getUserByWallet);
 
 /* =====================================================
    PROTECTED ROUTES
@@ -38,7 +39,6 @@ router.post("/logout", logoutUser);
 // Approval system
 router.get("/pending-users", getPendingUsers);
 router.post("/approve", approveUser);
-router.get("/users/by-wallet/:wallet",getUserByWallet)
 // router.post("/reject", rejectUser);
 
 export default router;
