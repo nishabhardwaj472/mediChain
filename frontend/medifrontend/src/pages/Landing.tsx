@@ -45,9 +45,15 @@ const Landing = () => (
           className="mt-8 flex flex-col sm:flex-row gap-4 justify-center"
         >
           <Link to="/login"><Button size="lg" className="gap-2">Get Started <ArrowRight className="h-4 w-4" /></Button></Link>
-          <Link to="/verify"><Button size="lg" variant="outline" className="gap-2 border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10">
-            <QrCode className="h-4 w-4" /> Verify Medicine
-          </Button></Link>
+          <Link to="/verify">
+  <Button
+    size="lg"
+    variant="outline"
+    className="gap-2 border-primary-foreground/30 text-black hover:bg-primary-foreground/10"
+  >
+    <QrCode className="h-4 w-4" /> Verify Medicine
+  </Button>
+</Link>
         </motion.div>
       </div>
     </section>

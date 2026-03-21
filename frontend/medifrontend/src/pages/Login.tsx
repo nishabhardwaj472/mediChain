@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -23,12 +23,21 @@ const loginSchema = z.object({
 type FormData = z.infer<typeof loginSchema>;
 
 const Login = () => {
-  const { login } = useAuth();
+  const { login, isAuthenticated, loading } = useAuth();
   const wallet = useWallet();
   const navigate = useNavigate();
 
   const [showPw, setShowPw] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  //
+  // 🔄 AUTO-REDIRECT IF AUTHENTICATED
+  //
+  useEffect(() => {
+    if (!loading && isAuthenticated) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [isAuthenticated, loading, navigate]);
 
   const {
     register,
@@ -37,6 +46,8 @@ const Login = () => {
   } = useForm<FormData>({
     resolver: zodResolver(loginSchema),
   });
+
+  
 
   //
   // 🔐 SUBMIT HANDLER

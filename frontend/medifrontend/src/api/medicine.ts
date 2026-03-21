@@ -153,24 +153,12 @@ export const getMedicineHistory = async (batchId: string) => {
 };
 
 //
-// 🔐 VERIFY (Direct Blockchain)
-//
 export const verifyMedicine = async (payload: {
   batchId: string;
-  qrHash: string;
+  qrHash?: string;
 }) => {
-  const contract = await getContract();
-
-  const result = await contract.verifyMedicine(
-    payload.batchId,
-    payload.qrHash
-  );
-
-  return {
-    isValid: result[0],
-    isExpired: result[1],
-    name: result[2],
-    manufacturer: result[3],
-    imageUrl: result[4],
-  };
+  return request("/medicine/verify", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 };

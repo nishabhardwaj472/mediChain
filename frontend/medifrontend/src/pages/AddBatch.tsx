@@ -160,10 +160,16 @@ const AddBatch = () => {
       <BlockchainStatus status={status} txHash={txHash} />
 
       {status === "confirmed" && qrImage && (
-        <QRCodeDisplay
-         value={`${window.location.origin}/verify/${form.batchId}`}
-          title={`QR: ${form.batchId}`}
-        />
+        <Card className="w-fit">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-center">Batch QR Code</CardTitle>
+          </CardHeader>
+          <CardContent className="flex justify-center p-4">
+            <div className="rounded-lg bg-background p-3 border">
+              <img src={qrImage} alt="Medicine QR Code" className="w-[180px] h-[180px]" />
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

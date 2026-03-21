@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -92,7 +92,7 @@ const roles: { value: UserRole; label: string; description: string }[] = [
 ];
 
 export default function Register() {
-  const { register: registerUser } = useAuth();
+  const { register: registerUser, isAuthenticated, loading } = useAuth();
   const wallet = useWallet();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -100,6 +100,15 @@ export default function Register() {
   const [showPw, setShowPw] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [registered, setRegistered] = useState(false);
+
+  //
+  // 🔄 AUTO-REDIRECT IF AUTHENTICATED
+  //
+  useEffect(() => {
+    if (!loading && isAuthenticated) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [isAuthenticated, loading, navigate]);
 
   const {
     register,
@@ -111,6 +120,8 @@ export default function Register() {
     resolver: zodResolver(registerSchema),
     defaultValues: { role: "consumer" },
   });
+
+  
 
   const role = watch("role");
   const needsApproval = ROLES_PENDING_APPROVAL.includes(role);
