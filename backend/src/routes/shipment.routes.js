@@ -14,7 +14,7 @@ const router = Router();
 //
 
 // ✅ Create / Update Shipment (Distributor / Manufacturer)
-router.post("/", verifyJWT, createShipment);
+router.post("/create", verifyJWT, createShipment);
 
 // ✅ Get all shipments (Admin / analytics)
 router.get("/", verifyJWT, getAllShipments);

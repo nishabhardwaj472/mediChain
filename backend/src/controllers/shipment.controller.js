@@ -1,30 +1,27 @@
-import { Shipment } from "../models/shipment.model.js";
-import { contract } from "../utils/blockchain.js";
+import { Shipment } from "../models/Shipment.model.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 //
-// ✅ CREATE / UPDATE SHIPMENT
+// ✅ CREATE / UPDATE SHIPMENT (NO BLOCKCHAIN WRITE)
 //
 export const createShipment = asyncHandler(async (req, res) => {
-  const { batchId, toAddress, location, status } = req.body;
+  const { batchId, toAddress, location, status, txHash } = req.body;
 
   const user = req.user;
+
+  if (!batchId || !toAddress || !location || !status) {
+    throw new ApiError(400, "All fields are required");
+  }
+
+  if (!txHash) {
+    throw new ApiError(400, "Transaction hash required");
+  }
 
   if (!toAddress.startsWith("0x")) {
     throw new ApiError(400, "Invalid wallet address");
   }
-
-  // 🔗 Blockchain call
-  const tx = await contract.updateShipment(
-    batchId,
-    toAddress,
-    location,
-    status
-  );
-
-  await tx.wait();
 
   // 💾 Save in DB
   const shipment = await Shipment.create({
@@ -33,7 +30,7 @@ export const createShipment = asyncHandler(async (req, res) => {
     to: toAddress,
     location,
     status,
-    transactionHash: tx.hash,
+    transactionHash: txHash,
     timestamp: Math.floor(Date.now() / 1000),
   });
 
@@ -41,7 +38,7 @@ export const createShipment = asyncHandler(async (req, res) => {
     new ApiResponse(
       200,
       {
-        txHash: tx.hash,
+        txHash,
         shipment,
       },
       "Shipment recorded successfully"

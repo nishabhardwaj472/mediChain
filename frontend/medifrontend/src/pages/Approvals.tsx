@@ -22,6 +22,9 @@ import {
 
 import { useToast } from "@/hooks/use-toast";
 
+import { ethers } from "ethers";
+import ABI from "@/abi/MediChain.json";
+
 /* =====================================================
    ROLE UI CONFIG
 ===================================================== */
@@ -52,43 +55,76 @@ const Approvals = () => {
   if (!user) return null;
 
   /* =====================================================
-     🔐 ROLE LOGIC
+     ROLE LOGIC
   ===================================================== */
   const canApproveRole =
     user.role in APPROVER_FOR
       ? (APPROVER_FOR[user.role] as UserRole)
       : null;
 
-  // extra safety (backend already filters)
   const filteredUsers = pendingUsers.filter(
     (u) => u.role === canApproveRole
   );
 
   /* =====================================================
-     ✅ APPROVE (BLOCKCHAIN TX)
+     APPROVE (CORRECT FLOW)
   ===================================================== */
-  const handleApprove = async (id: string, name: string) => {
+  const handleApprove = async (u: any) => {
     try {
-      setLoadingId(id);
+      setLoadingId(u._id);
 
       toast({
-        title: "Processing...",
-        description: "Waiting for blockchain confirmation",
+        title: "Connect Wallet",
+        description: "Please confirm in MetaMask",
       });
 
-      await approveUser(id); // backend → blockchain → DB sync
+      // 🔗 connect wallet
+      await window.ethereum.request({ method: "eth_requestAccounts" });
+
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+
+      const contract = new ethers.Contract(
+        import.meta.env.VITE_CONTRACT_ADDRESS,
+        ABI.abi,
+        signer
+      );
+
+      let tx;
+
+      // 🔥 role-based contract call
+      if (u.role === "manufacturer") {
+        tx = await contract.approveManufacturer(u.walletAddress);
+      } else if (u.role === "distributor") {
+        tx = await contract.approveDistributor(u.walletAddress);
+      } else if (u.role === "pharmacy") {
+        tx = await contract.approvePharmacy(u.walletAddress);
+      } else {
+        throw new Error("Invalid role");
+      }
+
+      toast({
+        title: "Transaction Sent",
+        description: "Waiting for blockchain confirmation...",
+      });
+
+      const receipt = await tx.wait();
+
+      // ✅ send txHash to backend
+      await approveUser(u._id, receipt.hash);
 
       toast({
         title: "Approved",
-        description: `${name} is now approved on blockchain`,
+        description: `${u.fullName} approved successfully`,
       });
-    } catch (err: unknown) {
+
+    } catch (err: any) {
+      console.error(err);
+
       toast({
         title: "Approval Failed",
         description:
-          err instanceof Error
-            ? err.message
-            : "Blockchain transaction failed",
+          err?.reason || err?.message || "Transaction failed",
         variant: "destructive",
       });
     } finally {
@@ -97,7 +133,7 @@ const Approvals = () => {
   };
 
   /* =====================================================
-     ❌ REJECT
+     REJECT
   ===================================================== */
   const handleReject = async (id: string, name: string) => {
     try {
@@ -110,13 +146,10 @@ const Approvals = () => {
         description: `${name} has been rejected`,
         variant: "destructive",
       });
-    } catch (err: unknown) {
+    } catch (err: any) {
       toast({
         title: "Rejection Failed",
-        description:
-          err instanceof Error
-            ? err.message
-            : "Something went wrong",
+        description: err?.message || "Something went wrong",
         variant: "destructive",
       });
     } finally {
@@ -142,18 +175,7 @@ const Approvals = () => {
         </div>
       </div>
 
-      {/* NO PERMISSION */}
-      {!canApproveRole && (
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground">
-              Your role ({user.role}) cannot approve users.
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* APPROVAL LIST */}
+      {/* LIST */}
       {canApproveRole && (
         <Card>
           <CardHeader>
@@ -180,7 +202,6 @@ const Approvals = () => {
                     key={u._id}
                     className="flex justify-between items-center p-4 border rounded-lg"
                   >
-                    {/* USER INFO */}
                     <div>
                       <p className="font-medium">{u.fullName}</p>
                       <p className="text-sm text-muted-foreground">
@@ -188,19 +209,15 @@ const Approvals = () => {
                       </p>
                     </div>
 
-                    {/* ACTIONS */}
                     <div className="flex items-center gap-2">
                       <Badge variant={roleBadgeVariant[u.role]}>
                         {u.role}
                       </Badge>
 
-                      {/* APPROVE */}
                       <Button
                         size="sm"
                         disabled={loadingId === u._id}
-                        onClick={() =>
-                          handleApprove(u._id!, u.fullName || "")
-                        }
+                        onClick={() => handleApprove(u)}
                         className="bg-green-600 hover:bg-green-700 text-white"
                       >
                         {loadingId === u._id ? (
@@ -210,7 +227,6 @@ const Approvals = () => {
                         )}
                       </Button>
 
-                      {/* REJECT */}
                       <Button
                         size="sm"
                         variant="destructive"

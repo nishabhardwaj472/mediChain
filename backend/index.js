@@ -32,10 +32,12 @@ connectDB()
 // Routes imports
 import userRouter from "./src/routes/user.route.js"
 import medicineRouter from "./src/routes/medicine.routes.js"
+import shipmentRouter from "./src/routes/shipment.routes.js"
 
 // Route registration
 app.use("/api/v1/users", userRouter)
 app.use("/api/v1/medicine", medicineRouter)
+app.use("/api/v1/shipment", shipmentRouter)
 
 
 

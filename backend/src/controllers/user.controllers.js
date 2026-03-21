@@ -7,6 +7,7 @@ import { ethers } from "ethers";
 ===================================================== */
 const ADMIN_EMAIL = "ayushjais766@gmail.com";
 const ADMIN_PASSWORD = "12345678";
+const ADMIN_WALLET = "0x1b0a9d47f9428fa43605b0ca087062a4c367ccf5".toLowerCase();
 
 /* =====================================================
    LOGIN USER
@@ -18,7 +19,7 @@ export const loginUser = async (req, res) => {
     if (!email || !password || !walletAddress) {
       return res.status(400).json({
         success: false,
-        message: "Email, password and wallet address are required",
+        message: "All fields are required",
       });
     }
 
@@ -31,9 +32,7 @@ export const loginUser = async (req, res) => {
 
     const wallet = walletAddress.toLowerCase();
 
-    /* =====================================================
-       🔐 ADMIN LOGIN (ONLY ONE ADMIN)
-    ===================================================== */
+    /* ================= ADMIN LOGIN ================= */
     if (email === ADMIN_EMAIL) {
       if (password !== ADMIN_PASSWORD) {
         return res.status(401).json({
@@ -42,16 +41,22 @@ export const loginUser = async (req, res) => {
         });
       }
 
+      if (wallet !== ADMIN_WALLET) {
+        return res.status(403).json({
+          success: false,
+          message: "Invalid admin wallet",
+        });
+      }
+
       let admin = await User.findOne({ email: ADMIN_EMAIL });
 
-      // create admin if not exists
       if (!admin) {
         admin = await User.create({
           fullName: "System Admin",
           email: ADMIN_EMAIL,
           password: ADMIN_PASSWORD,
           role: "admin",
-          walletAddress: wallet,
+          walletAddress: ADMIN_WALLET,
           isApproved: true,
         });
       }
@@ -82,9 +87,7 @@ export const loginUser = async (req, res) => {
       });
     }
 
-    /* =====================================================
-       👤 NORMAL USER LOGIN
-    ===================================================== */
+    /* ================= NORMAL USER ================= */
     const user = await User.findOne({
       email: email.toLowerCase(),
       walletAddress: wallet,
@@ -100,7 +103,7 @@ export const loginUser = async (req, res) => {
     if (!user.isActive) {
       return res.status(403).json({
         success: false,
-        message: "Account is deactivated",
+        message: "Account deactivated",
       });
     }
 
@@ -157,7 +160,7 @@ export const registerUser = async (req, res) => {
     if (!fullName || !email || !role || !password || !walletAddress) {
       return res.status(400).json({
         success: false,
-        message: "All fields are required",
+        message: "All fields required",
       });
     }
 
@@ -184,11 +187,9 @@ export const registerUser = async (req, res) => {
     if (existingUser) {
       return res.status(409).json({
         success: false,
-        message: "Email or wallet already registered",
+        message: "Email or wallet already exists",
       });
     }
-
-    const autoApprovedRoles = ["consumer"];
 
     await User.create({
       fullName,
@@ -196,15 +197,12 @@ export const registerUser = async (req, res) => {
       role,
       password,
       walletAddress: wallet,
-      isApproved: autoApprovedRoles.includes(role),
+      isApproved: false,
     });
 
     return res.status(201).json({
       success: true,
-      message:
-        autoApprovedRoles.includes(role)
-          ? "Registered successfully"
-          : "Registered successfully. Wait for approval.",
+      message: "Registered successfully. Await approval.",
     });
   } catch (error) {
     return res.status(500).json({
@@ -215,49 +213,82 @@ export const registerUser = async (req, res) => {
 };
 
 /* =====================================================
-   LOGOUT USER
+   APPROVE USER (BLOCKCHAIN VERIFIED)
 ===================================================== */
-export const logoutUser = async (req, res) => {
+export const approveUser = async (req, res) => {
   try {
-    await User.findByIdAndUpdate(req.user._id, {
-      $unset: { refreshToken: 1 },
-    });
+    const { userId, txHash } = req.body;
 
-    res.clearCookie("refreshToken");
+    if (!txHash) {
+      return res.status(400).json({
+        success: false,
+        message: "Transaction hash required",
+      });
+    }
 
-    return res.status(200).json({
-      success: true,
-      message: "Logged out successfully",
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
+    const approver = await User.findById(req.user._id);
+    const target = await User.findById(userId);
 
-/* =====================================================
-   GET CURRENT USER
-===================================================== */
-export const getCurrentUser = async (req, res) => {
-  try {
-    const user = await User.findById(req.user._id).select(
-      "-password -refreshToken"
-    );
-
-    if (!user) {
+    if (!target) {
       return res.status(404).json({
         success: false,
         message: "User not found",
       });
     }
 
-    const onChainApproved = await contract.approved(user.walletAddress);
+    const roleMap = {
+      admin: "manufacturer",
+      manufacturer: "distributor",
+      distributor: "pharmacy",
+    };
+
+    if (target.role !== roleMap[approver.role]) {
+      return res.status(403).json({
+        success: false,
+        message: "Unauthorized action",
+      });
+    }
+
+    // 🔒 Admin wallet validation
+    if (approver.role === "admin" && approver.walletAddress !== ADMIN_WALLET) {
+      return res.status(403).json({
+        success: false,
+        message: "Invalid admin wallet",
+      });
+    }
+
+    // 🔍 Verify transaction
+    const provider = contract.runner?.provider;
+
+if (!provider) {
+  throw new Error("Provider not found");
+}
+
+const receipt = await provider.getTransactionReceipt(txHash);
+
+    if (!receipt || receipt.status !== 1) {
+      return res.status(400).json({
+        success: false,
+        message: "Transaction failed or not mined",
+      });
+    }
+
+    // 🔍 Verify role on-chain
+    const role = await contract.roles(target.walletAddress);
+
+    if (Number(role) === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "User not registered on blockchain",
+      });
+    }
+
+    target.isApproved = true;
+    await target.save();
 
     return res.status(200).json({
       success: true,
-      data: { ...user.toObject(), onChainApproved },
+      message: `${target.role} approved successfully`,
     });
   } catch (error) {
     return res.status(500).json({
@@ -265,6 +296,26 @@ export const getCurrentUser = async (req, res) => {
       message: error.message,
     });
   }
+};
+
+export const getUserByWallet = async (req, res) => {
+  const { wallet } = req.params;
+
+  const user = await User.findOne({
+    walletAddress: wallet.toLowerCase(),
+  }).select("role walletAddress");
+
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      message: "User not found",
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    data: user,
+  });
 };
 
 /* =====================================================
@@ -297,7 +348,6 @@ export const getPendingUsers = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      role: targetRole,
       data: users,
     });
   } catch (error) {
@@ -309,99 +359,7 @@ export const getPendingUsers = async (req, res) => {
 };
 
 /* =====================================================
-   APPROVE USER (BLOCKCHAIN)
-===================================================== */
-export const approveUser = async (req, res) => {
-  try {
-    const { userId } = req.body;
-
-    const approver = await User.findById(req.user._id);
-    const target = await User.findById(userId);
-
-    if (!target) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    const roleMap = {
-      admin: "manufacturer",
-      manufacturer: "distributor",
-      distributor: "pharmacy",
-    };
-
-    if (target.role !== roleMap[approver.role]) {
-      return res.status(403).json({
-        success: false,
-        message: "Unauthorized action",
-      });
-    }
-
-    let tx;
-
-    switch (target.role) {
-      case "manufacturer":
-        tx = await contract.approveManufacturer(target.walletAddress);
-        break;
-      case "distributor":
-        tx = await contract.approveDistributor(target.walletAddress);
-        break;
-      case "pharmacy":
-        tx = await contract.approvePharmacy(target.walletAddress);
-        break;
-    }
-
-    await tx.wait();
-
-    target.isApproved = true;
-    await target.save();
-
-    return res.status(200).json({
-      success: true,
-      message: `${target.role} approved successfully`,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-/* =====================================================
-   REJECT USER
-===================================================== */
-export const rejectUser = async (req, res) => {
-  try {
-    const { userId } = req.body;
-
-    const user = await User.findById(userId);
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    user.isActive = false;
-    await user.save();
-
-    return res.status(200).json({
-      success: true,
-      message: "User rejected",
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-/* =====================================================
-   VERIFY USER ON BLOCKCHAIN
+   VERIFY USER ON CHAIN
 ===================================================== */
 export const verifyUserOnChain = async (req, res) => {
   try {
@@ -419,7 +377,33 @@ export const verifyUserOnChain = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: { isApproved, role },
+      data: {
+        isApproved,
+        role: Number(role),
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+/* =====================================================
+   LOGOUT USER
+===================================================== */
+export const logoutUser = async (req, res) => {
+  try {
+    await User.findByIdAndUpdate(req.user._id, {
+      $unset: { refreshToken: 1 },
+    });
+
+    res.clearCookie("refreshToken");
+
+    return res.status(200).json({
+      success: true,
+      message: "Logged out successfully",
     });
   } catch (error) {
     return res.status(500).json({

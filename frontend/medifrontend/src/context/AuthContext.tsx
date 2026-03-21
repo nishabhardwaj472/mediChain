@@ -27,7 +27,12 @@ export interface AuthContextType {
   loading: boolean;
   isAuthenticated: boolean;
 
-  login: (email: string, password: string, walletAddress: string) => Promise<void>;
+  login: (
+    email: string,
+    password: string,
+    walletAddress: string
+  ) => Promise<void>;
+
   register: (data: {
     fullName: string;
     email: string;
@@ -35,9 +40,10 @@ export interface AuthContextType {
     password: string;
     walletAddress: string;
   }) => Promise<void>;
+
   logout: () => Promise<void>;
 
-  approveUser: (userId: string) => Promise<void>;
+  approveUser: (userId: string, txHash: string) => Promise<void>;
   rejectUser: (userId: string) => Promise<void>;
 
   refreshUser: () => Promise<void>;
@@ -57,7 +63,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   /* =====================================================
-     INITIALIZE APP
+     INITIAL LOAD
   ===================================================== */
   useEffect(() => {
     initialize();
@@ -122,7 +128,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       await registerUser(data);
 
-      // auto login after register
+      // auto login
       await login(data.email, data.password, data.walletAddress);
     } finally {
       setLoading(false);
@@ -154,19 +160,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   /* =====================================================
-     APPROVE USER
+     APPROVE USER (BLOCKCHAIN VERIFIED)
   ===================================================== */
-  const approveUser = async (userId: string) => {
-    await approveUserAPI(userId);
-    await fetchPendingUsers();
+  const approveUser = async (userId: string, txHash: string) => {
+    try {
+      if (!txHash) {
+        throw new Error("Transaction hash is required");
+      }
+
+      await approveUserAPI(userId, txHash);
+
+      // refresh list
+      await fetchPendingUsers();
+    } catch (error) {
+      console.error("Approval error:", error);
+      throw error;
+    }
   };
 
   /* =====================================================
      REJECT USER
   ===================================================== */
   const rejectUser = async (userId: string) => {
-    await rejectUserAPI(userId);
-    await fetchPendingUsers();
+    try {
+      await rejectUserAPI(userId);
+      await fetchPendingUsers();
+    } catch (error) {
+      console.error("Reject error:", error);
+      throw error;
+    }
   };
 
   /* =====================================================

@@ -56,8 +56,7 @@ export const loginUser = async (payload: {
   });
 
   setToken(res.data.accessToken);
-
-  return res.data; // { user, accessToken }
+  return res.data;
 };
 
 // 📝 REGISTER
@@ -105,11 +104,18 @@ export const getPendingUsers = async () => {
   });
 };
 
-// ✅ APPROVE USER
-export const approveUser = async (userId: string) => {
+// ✅ APPROVE USER (FIXED)
+export const approveUser = async (
+  userId: string,
+  txHash: string
+) => {
+  if (!txHash) {
+    throw new Error("Transaction hash is required");
+  }
+
   return request("/users/approve", {
     method: "POST",
-    body: JSON.stringify({ userId }),
+    body: JSON.stringify({ userId, txHash }),
   });
 };
 
