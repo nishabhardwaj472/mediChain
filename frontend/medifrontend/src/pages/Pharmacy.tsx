@@ -1,13 +1,18 @@
 import { useState } from "react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import BlockchainStatus from "@/components/BlockchainStatus";
-import { confirmReceipt } from "@/api/medicine";
+import { confirmReceipt as confirmReceiptAPI } from "@/api/medicine";
+import contract from "@/blockchain/contract"; // ✅ use your existing contract
+import { useToast } from "@/hooks/use-toast";
 
 const Pharmacy = () => {
+  const { toast } = useToast();
+
   const [form, setForm] = useState({
     batchId: "",
     location: "",
@@ -19,25 +24,69 @@ const Pharmacy = () => {
 
   const [txHash, setTxHash] = useState("");
 
-  const update = (k: string, v: string) =>
-    setForm((prev) => ({ ...prev, [k]: v }));
+  const update = (key: string, value: string) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!form.batchId || !form.location) {
+      toast({
+        title: "Missing Fields",
+        description: "Please fill all fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setStatus("pending");
 
-      const res = await confirmReceipt({
+      // ✅ 1. Call blockchain
+      const tx = await contract.confirmReceipt(
+        form.batchId,
+        form.location
+      );
+
+      // ✅ 2. Wait for mining
+      await tx.wait();
+
+      // ✅ 3. Sync with backend
+      await confirmReceiptAPI({
         batchId: form.batchId,
         location: form.location,
+        txHash: tx.hash,
       });
 
-      setTxHash(res.data.txHash);
+      // ✅ success
+      setTxHash(tx.hash);
       setStatus("confirmed");
-    } catch (err) {
+
+      // reset form
+      setForm({
+        batchId: "",
+        location: "",
+      });
+
+      toast({
+        title: "Success",
+        description: "Medicine received successfully",
+      });
+
+    } catch (err: any) {
       console.error(err);
+
       setStatus("error");
+
+      toast({
+        title: "Transaction Failed",
+        description:
+          err?.reason ||
+          err?.message ||
+          "Something went wrong",
+        variant: "destructive",
+      });
     }
   };
 
@@ -58,6 +107,7 @@ const Pharmacy = () => {
               <Input
                 value={form.batchId}
                 onChange={(e) => update("batchId", e.target.value)}
+                placeholder="Enter batch ID"
                 required
               />
             </div>

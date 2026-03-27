@@ -1,14 +1,14 @@
 import express from "express";
 import {
-  loginUser,
-  registerUser,
-  logoutUser,
-  //   getCurrentUser,
-  approveUser,
-  //   rejectUser,
-  getPendingUsers,
-  verifyUserOnChain,
-  getUserByWallet,
+   loginUser,
+   registerUser,
+   logoutUser,
+   getCurrentUser,
+   approveUser,
+   //   rejectUser,
+   getPendingUsers,
+   verifyUserOnChain,
+   getUserByWallet,
 } from "../controllers/user.controllers.js";
 
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -34,7 +34,7 @@ router.use(verifyJWT);
 router.post("/logout", logoutUser);
 
 // User
-// router.get("/me", getCurrentUser);
+router.get("/me", verifyJWT, getCurrentUser);
 
 // Approval system
 router.get("/pending-users", getPendingUsers);

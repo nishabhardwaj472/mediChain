@@ -197,7 +197,7 @@ export const registerUser = async (req, res) => {
       role,
       password,
       walletAddress: wallet,
-      isApproved: false,
+      isApproved: role === "consumer",
     });
 
     return res.status(201).json({
@@ -260,11 +260,11 @@ export const approveUser = async (req, res) => {
     // 🔍 Verify transaction
     const provider = contract.runner?.provider;
 
-if (!provider) {
-  throw new Error("Provider not found");
-}
+    if (!provider) {
+      throw new Error("Provider not found");
+    }
 
-const receipt = await provider.getTransactionReceipt(txHash);
+    const receipt = await provider.getTransactionReceipt(txHash);
 
     if (!receipt || receipt.status !== 1) {
       return res.status(400).json({
@@ -404,6 +404,34 @@ export const logoutUser = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Logged out successfully",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+/* =====================================================
+   GET CURRENT USER
+===================================================== */
+export const getCurrentUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select("-password -refreshToken");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const onChainApproved = await contract.approved(user.walletAddress);
+
+    return res.status(200).json({
+      success: true,
+      data: { ...user.toObject(), onChainApproved },
     });
   } catch (error) {
     return res.status(500).json({

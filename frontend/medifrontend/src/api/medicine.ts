@@ -57,26 +57,27 @@ export const updateShipment = async (payload: {
 //
 // ✅ CONFIRM RECEIPT (Frontend → Blockchain → Backend)
 //
-export const confirmReceipt = async (payload: {
+export const confirmReceipt = async (data: {
   batchId: string;
   location: string;
+  txHash: string;
 }) => {
-  const contract = await getContract();
-
-  const tx = await contract.confirmReceipt(
-    payload.batchId,
-    payload.location
-  );
-
-  const receipt = await tx.wait();
-
-  return request("/medicine/confirm-receipt", {
+  const res = await fetch("/api/v1/medicine/confirm-receipt", {
     method: "POST",
-    body: JSON.stringify({
-      ...payload,
-      txHash: receipt.hash,
-    }),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
   });
+
+  const text = await res.text();
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    console.error("Invalid response:", text);
+    throw new Error("Server error");
+  }
 };
 
 //

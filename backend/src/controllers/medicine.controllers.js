@@ -1,15 +1,14 @@
-import crypto from "crypto";
 import QRCode from "qrcode";
 
-import { contract } from "../utils/blockchain.js"; // ONLY for read
+import { contract } from "../utils/blockchain.js"; // read-only
 import { ApiError } from "../utils/ApiError.js";
-import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 import { Medicine } from "../models/Medicine.model.js";
+import { User } from "../models/User.model.js";
 
 //
-// ✅ REGISTER MEDICINE (NO BLOCKCHAIN WRITE HERE)
+// ✅ REGISTER MEDICINE
 //
 export const registerMedicine = asyncHandler(async (req, res) => {
   const {
@@ -32,15 +31,14 @@ export const registerMedicine = asyncHandler(async (req, res) => {
     throw new ApiError(403, "Only manufacturers allowed");
   }
 
-  if (!txHash) {
-    throw new ApiError(400, "Transaction hash required");
+  if (!batchId || !name || !txHash) {
+    throw new ApiError(400, "Required fields missing");
   }
 
-  // 🔗 Generate verify URL
+  // 🔗 QR URL
   const verifyUrl = `http://localhost:5173/verify/${batchId}?hash=${qrHash}`;
   const imageUrl = await QRCode.toDataURL(verifyUrl);
 
-  // 🏥 SAVE TO DB
   const medicine = await Medicine.create({
     name,
     batchId,
@@ -50,8 +48,8 @@ export const registerMedicine = asyncHandler(async (req, res) => {
     manufactureDate,
     expiryDate,
     description,
-    manufacturer: user.walletAddress,
-    currentHolder: user.walletAddress,
+    manufacturer: user.walletAddress.toLowerCase(),
+    currentHolder: user.walletAddress.toLowerCase(),
     ownerRole: "Manufacturer",
     qrHash,
     qrDataString,
@@ -60,7 +58,7 @@ export const registerMedicine = asyncHandler(async (req, res) => {
     history: [
       {
         from: "0x0000000000000000000000000000000000000000",
-        to: user.walletAddress,
+        to: user.walletAddress.toLowerCase(),
         location: "Manufacturer Facility",
         status: "Registered",
         timestamp: Math.floor(Date.now() / 1000),
@@ -69,22 +67,15 @@ export const registerMedicine = asyncHandler(async (req, res) => {
     ],
   });
 
-  return res.status(200).json(
-    new ApiResponse(
-      200,
-      {
-        txHash,
-        qrHash,
-        imageUrl,
-        medicine,
-      },
-      "Medicine registered successfully"
-    )
-  );
+  return res.status(200).json({
+    success: true,
+    data: { medicine, txHash, qrHash, imageUrl },
+    message: "Medicine registered successfully",
+  });
 });
 
 //
-// ✅ GET MEDICINE (FROM BLOCKCHAIN - READ ONLY)
+// ✅ GET MEDICINE (BLOCKCHAIN READ)
 //
 export const getMedicineByBatchId = asyncHandler(async (req, res) => {
   const { batchId } = req.params;
@@ -95,36 +86,34 @@ export const getMedicineByBatchId = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Medicine not found");
   }
 
-  return res.status(200).json(
-    new ApiResponse(
-      200,
-      {
-        name: data.name,
-        batchId: data.batchId,
-        manufacturerName: data.manufacturerName,
-        licenseNo: data.licenseNo,
-        quantity: Number(data.quantity),
-        manufactureDate: Number(data.manufactureDate),
-        expiryDate: Number(data.expiryDate),
-        description: data.description,
-        manufacturer: data.manufacturer,
-        qrHash: data.qrHash,
-        imageUrl: data.imageUrl,
-      },
-      "Fetched from blockchain"
-    )
-  );
+  return res.status(200).json({
+    success: true,
+    data: {
+      name: data.name,
+      batchId: data.batchId,
+      manufacturerName: data.manufacturerName,
+      licenseNo: data.licenseNo,
+      quantity: Number(data.quantity),
+      manufactureDate: Number(data.manufactureDate),
+      expiryDate: Number(data.expiryDate),
+      description: data.description,
+      manufacturer: data.manufacturer,
+      qrHash: data.qrHash,
+      imageUrl: data.imageUrl,
+    },
+    message: "Fetched from blockchain",
+  });
 });
 
 //
-// ✅ UPDATE SHIPMENT (NO BLOCKCHAIN WRITE HERE)
+// ✅ UPDATE SHIPMENT
 //
 export const updateShipment = asyncHandler(async (req, res) => {
   const { batchId, toAddress, location, status, txHash } = req.body;
   const user = req.user;
 
-  if (!txHash) {
-    throw new ApiError(400, "Transaction hash required");
+  if (!batchId || !toAddress || !location || !status || !txHash) {
+    throw new ApiError(400, "All fields are required");
   }
 
   const medicine = await Medicine.findOne({ batchId });
@@ -133,28 +122,15 @@ export const updateShipment = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Medicine not found");
   }
 
-  // 🏥 UPDATE DB
-  medicine.status = "InTransit";
-
-  medicine.history.push({
-    from: user.walletAddress,
-    to: receiver.walletAddress,
-    location,
-    status,
-    timestamp: Math.floor(Date.now() / 1000),
-    transactionHash: txHash,
-  });
-
-  // 🔍 Find receiver user
+  // 🔍 Find receiver FIRST
   const receiver = await User.findOne({
     walletAddress: toAddress.toLowerCase(),
   });
 
   if (!receiver) {
-    throw new ApiError(404, "Receiver wallet not registered");
+    throw new ApiError(404, "Receiver not found");
   }
 
-  // ❌ Prevent invalid role flow
   if (
     receiver.role !== "distributor" &&
     receiver.role !== "pharmacy"
@@ -162,33 +138,40 @@ export const updateShipment = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid receiver role");
   }
 
-  // 🏥 Update medicine
-  medicine.currentHolder = receiver.walletAddress;
+  // 🏥 Update DB
+  medicine.status = "InTransit";
 
-  // Optional: track role
+  medicine.history.push({
+    from: user.walletAddress.toLowerCase(),
+    to: receiver.walletAddress.toLowerCase(),
+    location,
+    status,
+    timestamp: Math.floor(Date.now() / 1000),
+    transactionHash: txHash,
+  });
+
+  medicine.currentHolder = receiver.walletAddress.toLowerCase();
   medicine.ownerRole =
     receiver.role === "pharmacy" ? "Pharmacy" : "Distributor";
 
   await medicine.save();
 
-  return res.status(200).json(
-    new ApiResponse(
-      200,
-      { txHash },
-      "Shipment updated successfully"
-    )
-  );
+  return res.status(200).json({
+    success: true,
+    data: { txHash },
+    message: "Shipment updated successfully",
+  });
 });
 
 //
-// ✅ CONFIRM RECEIPT (NO BLOCKCHAIN WRITE HERE)
+// ✅ CONFIRM RECEIPT
 //
 export const confirmReceipt = asyncHandler(async (req, res) => {
   const { batchId, location, txHash } = req.body;
   const user = req.user;
 
-  if (!txHash) {
-    throw new ApiError(400, "Transaction hash required");
+  if (!batchId || !location || !txHash) {
+    throw new ApiError(400, "All fields are required");
   }
 
   const medicine = await Medicine.findOne({ batchId });
@@ -197,34 +180,32 @@ export const confirmReceipt = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Medicine not found");
   }
 
-  // 🏥 UPDATE DB
   medicine.status = "Delivered";
 
   medicine.history.push({
-    from: medicine.currentHolder, // previous holder
-    to: user.walletAddress,
+    from: medicine.currentHolder,
+    to: user.walletAddress.toLowerCase(),
     location,
     status: "Delivered",
     timestamp: Math.floor(Date.now() / 1000),
     transactionHash: txHash,
   });
 
-  medicine.currentHolder = user.walletAddress;
-  medicine.ownerRole = user.role === "pharmacy" ? "Pharmacy" : "Distributor";
+  medicine.currentHolder = user.walletAddress.toLowerCase();
+  medicine.ownerRole =
+    user.role === "pharmacy" ? "Pharmacy" : "Distributor";
 
   await medicine.save();
 
-  return res.status(200).json(
-    new ApiResponse(
-      200,
-      { txHash },
-      "Receipt confirmed successfully"
-    )
-  );
+  return res.status(200).json({
+    success: true,
+    data: { txHash },
+    message: "Receipt confirmed successfully",
+  });
 });
 
 //
-// ✅ GET HISTORY (FROM BLOCKCHAIN)
+// ✅ GET HISTORY (BLOCKCHAIN)
 //
 export const getMedicineHistory = asyncHandler(async (req, res) => {
   const { batchId } = req.params;
@@ -239,66 +220,62 @@ export const getMedicineHistory = asyncHandler(async (req, res) => {
     status: h.status,
   }));
 
-  return res.status(200).json(
-    new ApiResponse(200, formatted, "History fetched")
-  );
+  return res.status(200).json({
+    success: true,
+    data: formatted,
+    message: "History fetched",
+  });
 });
 
 //
-// ✅ VERIFY MEDICINE (BLOCKCHAIN READ)
+// ✅ VERIFY MEDICINE
 //
 export const verifyMedicine = asyncHandler(async (req, res) => {
   const { batchId, qrHash } = req.body;
 
-  // 1️⃣ CHECK BACKEND DB
   const medicine = await Medicine.findOne({ batchId });
+
   if (!medicine) {
-    return res.status(200).json(
-      new ApiResponse(
-        200,
-        { isValid: false, reason: "Not found in database" },
-        "Medicine not registered on backend"
-      )
-    );
+    return res.status(200).json({
+      success: true,
+      data: { isValid: false, reason: "Not found in DB" },
+      message: "Medicine not registered",
+    });
   }
 
-  // 2️⃣ CHECK BLOCKCHAIN
   let isVerifiedOnChain = false;
   let isExpired = false;
 
   if (qrHash) {
-    // QR Scan: Secure verification with hash
-    const blockchainResult = await contract.verifyMedicine(batchId, qrHash);
-    isVerifiedOnChain = blockchainResult[0];
-    isExpired = blockchainResult[1];
+    const result = await contract.verifyMedicine(batchId, qrHash);
+    isVerifiedOnChain = result[0];
+    isExpired = result[1];
   } else {
-    // Manual Entry: Verify registration exists on-chain
-    const blockchainResult = await contract.getMedicine(batchId);
-    isVerifiedOnChain = blockchainResult.exists;
-    isExpired = Number(medicine.expiryDate) < Math.floor(Date.now() / 1000);
+    const result = await contract.getMedicine(batchId);
+    isVerifiedOnChain = result.exists;
+    isExpired =
+      Number(medicine.expiryDate) < Math.floor(Date.now() / 1000);
   }
 
-  // Final validation: On-chain existence and (if QR) hash match
-  // For QR, hash must match DB. For Manual, we've already checked on-chain existence.
-  const finalIsValid = isVerifiedOnChain && (qrHash ? (medicine.qrHash === qrHash) : true);
+  const isValid =
+    isVerifiedOnChain &&
+    (qrHash ? medicine.qrHash === qrHash : true);
 
-  return res.status(200).json(
-    new ApiResponse(
-      200,
-      {
-        isValid: finalIsValid,
-        verifiedBy: qrHash ? "QR Code" : "Batch ID",
-        batchId: medicine.batchId,
-        isExpired,
-        name: medicine.name,
-        manufacturer: medicine.manufacturerName,
-        imageUrl: medicine.imageUrl,
-        status: medicine.status,
-        expiryDate: medicine.expiryDate,
-        manufactureDate: medicine.manufactureDate,
-        currentHolder: medicine.currentHolder,
-      },
-      finalIsValid ? "Verification successful" : "Verification failed"
-    )
-  );
+  return res.status(200).json({
+    success: true,
+    data: {
+      isValid,
+      verifiedBy: qrHash ? "QR Code" : "Batch ID",
+      batchId: medicine.batchId,
+      name: medicine.name,
+      manufacturer: medicine.manufacturerName,
+      imageUrl: medicine.imageUrl,
+      status: medicine.status,
+      isExpired,
+      expiryDate: medicine.expiryDate,
+      manufactureDate: medicine.manufactureDate,
+      currentHolder: medicine.currentHolder,
+    },
+    message: isValid ? "Verification successful" : "Verification failed",
+  });
 });

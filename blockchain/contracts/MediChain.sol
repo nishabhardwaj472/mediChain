@@ -39,12 +39,16 @@ contract MediChain {
         approved[_user] = true;
     }
 
-    function approveDistributor(address _user) external onlyApproved(Role.Manufacturer) {
+    function approveDistributor(address _user) external {
+        require(roles[msg.sender] == Role.Manufacturer || msg.sender == admin, "Not authorized");
+        require(approved[msg.sender] || msg.sender == admin, "Not approved");
         roles[_user] = Role.Distributor;
         approved[_user] = true;
     }
-
-    function approvePharmacy(address _user) external onlyApproved(Role.Distributor) {
+    
+    function approvePharmacy(address _user) external {
+        require(roles[msg.sender] == Role.Distributor || msg.sender == admin, "Not authorized");
+        require(approved[msg.sender] || msg.sender == admin, "Not approved");
         roles[_user] = Role.Pharmacy;
         approved[_user] = true;
     }
