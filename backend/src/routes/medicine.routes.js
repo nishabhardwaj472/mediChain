@@ -23,7 +23,7 @@ router.post("/register", verifyJWT, registerMedicine);
 router.post("/shipment", verifyJWT, updateShipment);
 
 // ✅ Confirm Receipt (Pharmacy)
-router.post("/receipt", verifyJWT, confirmReceipt);
+router.post("/confirm-receipt", verifyJWT, confirmReceipt);
 
 
 //

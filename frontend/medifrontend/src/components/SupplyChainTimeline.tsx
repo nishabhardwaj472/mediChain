@@ -13,7 +13,17 @@ interface SupplyChainTimelineProps {
   steps: TimelineStep[];
 }
 
-const getIcon = (stage: string) => {
+// ✅ Normalize stage names
+const isDeliveryStage = (stage: string) => {
+  const s = stage.toLowerCase();
+  return s === "confirmreceipt" || s === "delivery";
+};
+
+const getIcon = (stage: string, isDelivered: boolean) => {
+  if (isDelivered) {
+    return <Store className="h-5 w-5" />; // Pharmacy icon for delivered
+  }
+
   switch (stage.toLowerCase()) {
     case "manufacturer":
       return <Factory className="h-5 w-5" />;
@@ -26,44 +36,59 @@ const getIcon = (stage: string) => {
   }
 };
 
-const getStatus = (index: number, total: number) => {
-  if (index < total - 1) return "completed";
-  return "current";
-};
-
 const formatTime = (timestamp?: number) => {
   if (!timestamp) return "";
   return new Date(timestamp * 1000).toLocaleString();
 };
 
 const SupplyChainTimeline = ({ steps }: SupplyChainTimelineProps) => {
+
+  // ✅ Find first delivery step
+  const deliveryIndex = steps.findIndex((s) =>
+    isDeliveryStage(s.stage)
+  );
+
+  // ✅ Remove duplicate confirmReceipt calls
+  let filteredSteps = steps;
+  if (deliveryIndex !== -1) {
+    filteredSteps = [
+      ...steps.slice(0, deliveryIndex),
+      {
+        ...steps[deliveryIndex],
+        stage: "Delivered", // normalize label
+      },
+    ];
+  }
+
   return (
     <div className="space-y-0">
-      {steps.map((step, i) => {
-        const status = getStatus(i, steps.length);
+      {filteredSteps.map((step, i) => {
+        const isDelivered = isDeliveryStage(step.stage) || step.stage === "Delivered";
+        const isLast = i === filteredSteps.length - 1;
 
         return (
           <div key={i} className="flex gap-4">
+            
             {/* Icon Column */}
             <div className="flex flex-col items-center">
               <div
                 className={`rounded-full p-2 ${
-                  status === "completed"
+                  isDelivered
                     ? "bg-green-100 text-green-600"
                     : "bg-blue-100 text-blue-600"
                 }`}
               >
-                {status === "completed" ? (
+                {isDelivered ? (
                   <CheckCircle2 className="h-5 w-5" />
                 ) : (
-                  getIcon(step.stage)
+                  getIcon(step.stage, false)
                 )}
               </div>
 
-              {i < steps.length - 1 && (
+              {!isLast && (
                 <div
                   className={`w-0.5 h-20 ${
-                    status === "completed"
+                    isDelivered
                       ? "bg-green-400"
                       : "bg-gray-300"
                   }`}
@@ -75,7 +100,7 @@ const SupplyChainTimeline = ({ steps }: SupplyChainTimelineProps) => {
             <div className="pb-8 flex-1">
               <div className="flex items-center gap-2 mb-1">
                 <h4 className="font-semibold">
-                  {step.stage}
+                  {isDelivered ? "Delivered to Pharmacy" : step.stage}
                 </h4>
 
                 {step.location && (
@@ -90,8 +115,8 @@ const SupplyChainTimeline = ({ steps }: SupplyChainTimelineProps) => {
                 {step.fromTxId && (
                   <p>
                     <span className="font-sans font-medium text-foreground/60">
-                      From:{" "}
-                    </span>
+                      From:
+                    </span>{" "}
                     <span className="text-primary truncate">
                       {step.fromTxId}
                     </span>
@@ -101,8 +126,8 @@ const SupplyChainTimeline = ({ steps }: SupplyChainTimelineProps) => {
                 {step.toTxId && (
                   <p>
                     <span className="font-sans font-medium text-foreground/60">
-                      To:{" "}
-                    </span>
+                      To:
+                    </span>{" "}
                     <span className="text-primary truncate">
                       {step.toTxId}
                     </span>
@@ -120,7 +145,6 @@ const SupplyChainTimeline = ({ steps }: SupplyChainTimelineProps) => {
                     Tx: {step.txHash}
                   </p>
                 )}
-
               </div>
             </div>
           </div>

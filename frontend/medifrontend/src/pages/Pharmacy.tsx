@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import BlockchainStatus from "@/components/BlockchainStatus";
 import { confirmReceipt as confirmReceiptAPI } from "@/api/medicine";
-import contract from "@/blockchain/contract"; // ✅ use your existing contract
+import contract from "@/blockchain/contract";
 import { useToast } from "@/hooks/use-toast";
 
 const Pharmacy = () => {
@@ -43,35 +43,45 @@ const Pharmacy = () => {
     try {
       setStatus("pending");
 
-      // ✅ 1. Call blockchain
+      // ✅ 1. Blockchain transaction
       const tx = await contract.confirmReceipt(
         form.batchId,
         form.location
       );
 
-      // ✅ 2. Wait for mining
       await tx.wait();
 
-      // ✅ 3. Sync with backend
-      await confirmReceiptAPI({
-        batchId: form.batchId,
-        location: form.location,
-        txHash: tx.hash,
-      });
-
-      // ✅ success
+      // ✅ 2. Mark success immediately (blockchain is source of truth)
       setTxHash(tx.hash);
       setStatus("confirmed");
 
-      // reset form
+      toast({
+        title: "Success",
+        description: "Medicine received on blockchain",
+      });
+
+      // ✅ 3. Backend sync (non-blocking)
+      try {
+        await confirmReceiptAPI({
+          batchId: form.batchId,
+          location: form.location,
+          txHash: tx.hash,
+        });
+      } catch (apiErr) {
+        console.warn("Backend sync failed:", apiErr);
+
+        toast({
+          title: "Sync Issue",
+          description:
+            "Blockchain updated, but server sync failed",
+          variant: "destructive",
+        });
+      }
+
+      // ✅ reset form
       setForm({
         batchId: "",
         location: "",
-      });
-
-      toast({
-        title: "Success",
-        description: "Medicine received successfully",
       });
 
     } catch (err: any) {
@@ -124,11 +134,13 @@ const Pharmacy = () => {
 
             <Button
               type="submit"
-              disabled={status === "pending"}
+              disabled={status === "pending" || status === "confirmed"}
               className="w-full"
             >
               {status === "pending"
                 ? "Processing..."
+                : status === "confirmed"
+                ? "Already Delivered"
                 : "Confirm Receipt on Blockchain"}
             </Button>
 

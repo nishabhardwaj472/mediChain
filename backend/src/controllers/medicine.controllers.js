@@ -170,6 +170,7 @@ export const confirmReceipt = asyncHandler(async (req, res) => {
   const { batchId, location, txHash } = req.body;
   const user = req.user;
 
+  // ✅ Basic validation
   if (!batchId || !location || !txHash) {
     throw new ApiError(400, "All fields are required");
   }
@@ -180,26 +181,63 @@ export const confirmReceipt = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Medicine not found");
   }
 
+  const userAddress = user.walletAddress.toLowerCase();
+
+  // ✅ Prevent duplicate delivery (idempotent behavior)
+  if (medicine.status === "Delivered") {
+    return res.status(200).json({
+      success: true,
+      message: "Medicine already delivered",
+      data: {
+        txHash,
+        status: medicine.status,
+      },
+    });
+  }
+
+  // ✅ Prevent same holder confirming again
+  if (medicine.currentHolder === userAddress) {
+    return res.status(200).json({
+      success: true,
+      message: "Already received by this user",
+      data: {
+        txHash,
+        status: medicine.status,
+      },
+    });
+  }
+
+  // ✅ Optional: Only pharmacy should confirm
+  if (user.role !== "pharmacy") {
+    throw new ApiError(403, "Only pharmacy can confirm receipt");
+  }
+
+  // ✅ Update medicine state
   medicine.status = "Delivered";
 
+  // ✅ Add history entry (safe + meaningful)
   medicine.history.push({
-    from: medicine.currentHolder,
-    to: user.walletAddress.toLowerCase(),
+    from: medicine.currentHolder, // distributor
+    to: userAddress,              // pharmacy
     location,
     status: "Delivered",
     timestamp: Math.floor(Date.now() / 1000),
     transactionHash: txHash,
   });
 
-  medicine.currentHolder = user.walletAddress.toLowerCase();
-  medicine.ownerRole =
-    user.role === "pharmacy" ? "Pharmacy" : "Distributor";
+  // ✅ Update ownership
+  medicine.currentHolder = userAddress;
+  medicine.ownerRole = "Pharmacy";
 
   await medicine.save();
 
   return res.status(200).json({
     success: true,
-    data: { txHash },
+    data: {
+      txHash,
+      batchId,
+      status: "Delivered",
+    },
     message: "Receipt confirmed successfully",
   });
 });

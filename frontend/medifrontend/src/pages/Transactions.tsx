@@ -14,9 +14,9 @@ import {
 
 import abi from "../abi/MediChain.json";
 
-const contractAddress = "0x4f22aea0b3706dE2d8FC2E8D18C988181ebFAAdC";
-const RPC_URL = "https://eth-sepolia.g.alchemy.com/v2/kuCYTXz3No2igP5GtwZMy";
-const API_KEY = "FAJXKCR16N2YZDFK78HQNJQUMIPKPRH5EH"
+const contractAddress = import.meta.env.VITE_CONTRACT_ADDRESS;
+const RPC_URL = import.meta.env.VITE_RPC_URL;
+const API_KEY = import.meta.env.VITE_API_KEY;
 
 const Transactions = () => {
   const [txData, setTxData] = useState([]);

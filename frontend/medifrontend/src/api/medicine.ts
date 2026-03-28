@@ -2,20 +2,29 @@ import { getContract } from "../blockchain/contract.js";
 
 const BASE_URL = "http://localhost:3000/api/v1";
 
+// 🔐 Token helper
 const getToken = () => localStorage.getItem("accessToken");
 
+// 🌐 Common request handler
 const request = async (endpoint: string, options: RequestInit = {}) => {
+  const token = getToken();
+
   const res = await fetch(`${BASE_URL}${endpoint}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      Authorization: getToken() ? `Bearer ${getToken()}` : "",
+      ...(token && { Authorization: `Bearer ${token}` }),
       ...(options.headers || {}),
     },
     credentials: "include",
   });
 
-  const data = await res.json();
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error("Invalid server response");
+  }
 
   if (!res.ok) {
     throw new Error(data.message || "API Error");
@@ -24,9 +33,8 @@ const request = async (endpoint: string, options: RequestInit = {}) => {
   return data;
 };
 
-
 //
-// 🚚 UPDATE SHIPMENT (Frontend → Blockchain → Backend)
+// 🚚 UPDATE SHIPMENT
 //
 export const updateShipment = async (payload: {
   batchId: string;
@@ -55,33 +63,21 @@ export const updateShipment = async (payload: {
 };
 
 //
-// ✅ CONFIRM RECEIPT (Frontend → Blockchain → Backend)
+// ✅ CONFIRM RECEIPT
 //
 export const confirmReceipt = async (data: {
   batchId: string;
   location: string;
   txHash: string;
 }) => {
-  const res = await fetch("/api/v1/medicine/confirm-receipt", {
+  return request("/medicine/confirm-receipt", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify(data),
   });
-
-  const text = await res.text();
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    console.error("Invalid response:", text);
-    throw new Error("Server error");
-  }
 };
 
 //
-// 🧾 REGISTER MEDICINE (Frontend → Blockchain → Backend)
+// 🧾 REGISTER MEDICINE
 //
 export const registerMedicine = async (payload: {
   name: string;
@@ -109,9 +105,9 @@ export const registerMedicine = async (payload: {
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 
-  const imageUrl = ""; // backend will generate QR image
+  const imageUrl = "";
 
-  // 🔗 Blockchain call (user signs)
+  // 🔗 Blockchain call
   const tx = await contract.registerMedicine(
     payload.name,
     payload.batchId,
@@ -127,7 +123,6 @@ export const registerMedicine = async (payload: {
 
   const receipt = await tx.wait();
 
-  // 🏥 Send to backend
   return request("/medicine/register", {
     method: "POST",
     body: JSON.stringify({
@@ -140,7 +135,7 @@ export const registerMedicine = async (payload: {
 };
 
 //
-// 🔍 GET MEDICINE (Backend)
+// 🔍 GET MEDICINE
 //
 export const getMedicineByBatchId = async (batchId: string) => {
   return request(`/medicine/${batchId}`);
@@ -153,6 +148,8 @@ export const getMedicineHistory = async (batchId: string) => {
   return request(`/medicine/history/${batchId}`);
 };
 
+//
+// 🔎 VERIFY MEDICINE
 //
 export const verifyMedicine = async (payload: {
   batchId: string;
