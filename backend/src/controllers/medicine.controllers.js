@@ -317,3 +317,63 @@ export const verifyMedicine = asyncHandler(async (req, res) => {
     message: isValid ? "Verification successful" : "Verification failed",
   });
 });
+
+//
+// 📊 GET DASHBOARD STATS
+//
+export const getDashboardStats = asyncHandler(async (req, res) => {
+  const user = req.user;
+  const walletAddress = user.walletAddress.toLowerCase();
+  const role = user.role;
+
+  let query = {};
+  if (role === "manufacturer") {
+    query = { manufacturer: walletAddress };
+  } else if (role === "distributor" || role === "pharmacy") {
+    query = { currentHolder: walletAddress };
+  } else {
+    // consumer or admin? for now empty
+    query = { currentHolder: walletAddress };
+  }
+
+  // 1. Total Batches (Relevant to this user)
+  const totalBatches = await Medicine.countDocuments(query);
+
+  // 2. In Transit
+  const inTransit = await Medicine.countDocuments({
+    ...query,
+    status: "InTransit",
+  });
+
+  // 3. Delivered / Verified
+  const delivered = await Medicine.countDocuments({
+    ...query,
+    status: "Delivered",
+  });
+
+  // 4. Flagged (Expired)
+  const now = Math.floor(Date.now() / 1000);
+  const flagged = await Medicine.countDocuments({
+    ...query,
+    expiryDate: { $lt: now },
+  });
+
+  // 5. Recent Batches
+  const recentBatches = await Medicine.find(query)
+    .sort({ createdAt: -1 })
+    .limit(3);
+
+  return res.status(200).json({
+    success: true,
+    data: {
+      stats: {
+        totalBatches,
+        inTransit,
+        delivered,
+        flagged,
+      },
+      recentBatches,
+    },
+    message: "Dashboard stats fetched successfully",
+  });
+});

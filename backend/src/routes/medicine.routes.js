@@ -6,6 +6,7 @@ import {
   confirmReceipt,
   getMedicineHistory,
   verifyMedicine,
+  getDashboardStats,
 } from "../controllers/medicine.controllers.js";
 
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -18,6 +19,10 @@ const router = Router();
 
 // ✅ Register Medicine (Manufacturer only)
 router.post("/register", verifyJWT, registerMedicine);
+
+// ✅ Get Dashboard Stats
+router.get("/dashboard/stats", verifyJWT, getDashboardStats);
+
 
 // ✅ Update Shipment (Distributor / Manufacturer)
 router.post("/shipment", verifyJWT, updateShipment);

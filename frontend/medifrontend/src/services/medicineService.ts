@@ -177,3 +177,12 @@ export const verifyMedicine = async (payload: {
     imageUrl: result[4],
   };
 };
+
+//
+// 📊 GET DASHBOARD STATS (READ → BACKEND)
+//
+export const getDashboardStats = async () => {
+  return request("/medicine/dashboard/stats", {
+    method: "GET",
+  });
+};
