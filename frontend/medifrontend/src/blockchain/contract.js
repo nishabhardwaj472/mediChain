@@ -1,7 +1,7 @@
 import { ethers } from "ethers";
 import MediChainABI from "../abi/MediChain.json";
 
-const CONTRACT_ADDRESS = "0x4f22aea0b3706dE2d8FC2E8D18C988181ebFAAdC";
+const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS;
 
 let contract;
 
